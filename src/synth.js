@@ -93,7 +93,7 @@ export class Synth {
   }
 
   async init() {
-    await this.ctx.audioWorklet.addModule("./src/worklets/vcoProcessor.js");
+    await this.ctx.audioWorklet.addModule("./src/worklets/vcoProcessor.js?v=4");
 
     this.buildVoiceCore();
     this.buildFX();
@@ -383,7 +383,6 @@ export class Synth {
 
   tick() {
     const now = this.ctx.currentTime;
-
     this.updateEnvelope(now);
     this.applyModMatrix(now);
   }
@@ -431,12 +430,7 @@ export class Synth {
     const macro1 = this.baseValues.macro1;
     const macro2 = this.baseValues.macro2;
 
-    const sources = {
-      lfo,
-      env,
-      macro1,
-      macro2,
-    };
+    const sources = { lfo, env, macro1, macro2 };
 
     const sums = {
       "osc1.detune": 0,
@@ -454,7 +448,6 @@ export class Synth {
       const amount = route.amount ?? 0;
       const dest = route.dest;
       if (!(dest in sums)) continue;
-
       sums[dest] += sourceValue * amount * this.getDestinationScale(dest);
     }
 
@@ -496,7 +489,6 @@ export class Synth {
     const now = this.ctx.currentTime;
     this.currentNoteFrequency = freq;
     this.noteHeld = true;
-
     this.setAllFrequencies(freq);
 
     this.env.stage = "attack";
@@ -520,11 +512,11 @@ export class Synth {
   }
 
   applyCurrentDetunes(time) {
-  this.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1, time);
-  this.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2, time);
-  this.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3, time);
-}
-  
+    this.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1, time);
+    this.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2, time);
+    this.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3, time);
+  }
+
   setChorusMix(mix) {
     this.chorusDryGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
     this.chorusWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
@@ -605,4 +597,4 @@ export class Synth {
       // ignore
     });
   }
-                        }
+      }
