@@ -9,7 +9,7 @@ export class Synth {
     this.mix = null;
     this.filter = null;
     this.amp = null;
-    this.tremolo = null;
+    this.postAmpMod = null;
 
     this.osc1 = null;
     this.osc2 = null;
@@ -18,11 +18,6 @@ export class Synth {
     this.osc1Gain = null;
     this.osc2Gain = null;
     this.osc3Gain = null;
-
-    this.lfo = null;
-    this.lfoPitchGain = null;
-    this.lfoFilterGain = null;
-    this.lfoAmpGain = null;
 
     this.fxSendGain = null;
     this.dryGain = null;
@@ -49,45 +44,49 @@ export class Synth {
 
     this.baseFrequency = 220;
     this.currentNoteFrequency = 220;
-    this.isNoteHeld = false;
+    this.noteHeld = false;
+
+    this.baseDetune = {
+      osc1: 0,
+      osc2: -7,
+      osc3: 7,
+    };
+
+    this.baseValues = {
+      filterCutoff: 1200,
+      filterResonance: 0.5,
+      masterGain: 0.6,
+      chorusMix: 0.25,
+      chorusRate: 0.8,
+      chorusDepthMs: 4,
+      delayMix: 0.20,
+      delayTime: 0.28,
+      delayFeedback: 0.35,
+      reverbMix: 0.25,
+      reverbDecay: 2.0,
+      fxSend: 0.45,
+      lfoRate: 3.0,
+      macro1: 0.0,
+      macro2: 0.0,
+    };
 
     this.env = {
       attack: 0.01,
       decay: 0.35,
       sustain: 0.65,
       release: 0.45,
+      value: 0,
+      stage: "idle",
+      stageStart: 0,
+      stageStartValue: 0,
     };
 
-    this.lfoState = {
-      rate: 3,
-      pitchDepth: 0,
-      filterDepth: 600,
-      ampDepth: 0,
-    };
-
-    this.chorusState = {
-      mix: 0.25,
-      rate: 0.8,
-      depthMs: 4,
-      baseDelay: 0.018,
-    };
-
-    this.delayState = {
-      mix: 0.20,
-      time: 0.28,
-      feedback: 0.35,
-    };
-
-    this.reverbState = {
-      mix: 0.25,
-      decay: 2.0,
-    };
-
-    this.fxSend = 0.45;
-
-    this.filterEnvAmount = 1800;
-    this.baseCutoff = 1200;
-    this.baseResonance = 0.5;
+    this.routes = [
+      { source: "env", dest: "filter.cutoff", amount: 0.60 },
+      { source: "lfo", dest: "filter.cutoff", amount: 0.20 },
+      { source: "macro1", dest: "delay.mix", amount: 0.40 },
+      { source: "macro2", dest: "reverb.mix", amount: 0.50 },
+    ];
 
     this.params = new Map();
     this.discreteParams = new Map();
@@ -97,7 +96,6 @@ export class Synth {
     await this.ctx.audioWorklet.addModule("./src/worklets/vcoProcessor.js");
 
     this.buildVoiceCore();
-    this.buildModulation();
     this.buildFX();
     this.defineParams();
     this.initMIDI();
@@ -105,26 +103,26 @@ export class Synth {
 
   buildVoiceCore() {
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.6;
+    this.master.gain.value = this.baseValues.masterGain;
     this.master.connect(this.ctx.destination);
 
     this.amp = this.ctx.createGain();
     this.amp.gain.value = 0;
 
-    this.tremolo = this.ctx.createGain();
-    this.tremolo.gain.value = 1;
+    this.postAmpMod = this.ctx.createGain();
+    this.postAmpMod.gain.value = 1;
 
     this.filter = this.ctx.createBiquadFilter();
     this.filter.type = "lowpass";
-    this.filter.frequency.value = this.baseCutoff;
-    this.filter.Q.value = this.baseResonance;
+    this.filter.frequency.value = this.baseValues.filterCutoff;
+    this.filter.Q.value = this.baseValues.filterResonance;
 
     this.mix = this.ctx.createGain();
     this.mix.gain.value = 1.0;
 
     this.mix.connect(this.filter);
     this.filter.connect(this.amp);
-    this.amp.connect(this.tremolo);
+    this.amp.connect(this.postAmpMod);
 
     this.osc1 = new AudioWorkletNode(this.ctx, "vco");
     this.osc2 = new AudioWorkletNode(this.ctx, "vco");
@@ -150,38 +148,8 @@ export class Synth {
     this.osc2.parameters.get("wave").setValueAtTime(1, this.ctx.currentTime);
     this.osc3.parameters.get("wave").setValueAtTime(1, this.ctx.currentTime);
 
-    this.osc1.parameters.get("detune").setValueAtTime(0, this.ctx.currentTime);
-    this.osc2.parameters.get("detune").setValueAtTime(-7, this.ctx.currentTime);
-    this.osc3.parameters.get("detune").setValueAtTime(7, this.ctx.currentTime);
-
+    this.applyCurrentDetunes(this.ctx.currentTime);
     this.setAllFrequencies(this.baseFrequency);
-  }
-
-  buildModulation() {
-    this.lfo = this.ctx.createOscillator();
-    this.lfo.type = "sine";
-    this.lfo.frequency.value = this.lfoState.rate;
-
-    this.lfoPitchGain = this.ctx.createGain();
-    this.lfoFilterGain = this.ctx.createGain();
-    this.lfoAmpGain = this.ctx.createGain();
-
-    this.lfoPitchGain.gain.value = this.lfoState.pitchDepth;
-    this.lfoFilterGain.gain.value = this.lfoState.filterDepth;
-    this.setAmpLfoDepth(this.lfoState.ampDepth);
-
-    this.lfo.connect(this.lfoPitchGain);
-    this.lfo.connect(this.lfoFilterGain);
-    this.lfo.connect(this.lfoAmpGain);
-
-    this.lfoPitchGain.connect(this.osc1.parameters.get("detune"));
-    this.lfoPitchGain.connect(this.osc2.parameters.get("detune"));
-    this.lfoPitchGain.connect(this.osc3.parameters.get("detune"));
-
-    this.lfoFilterGain.connect(this.filter.frequency);
-    this.lfoAmpGain.connect(this.tremolo.gain);
-
-    this.lfo.start();
   }
 
   buildFX() {
@@ -189,10 +157,10 @@ export class Synth {
     this.dryGain.gain.value = 1.0;
 
     this.fxSendGain = this.ctx.createGain();
-    this.fxSendGain.gain.value = this.fxSend;
+    this.fxSendGain.gain.value = this.baseValues.fxSend;
 
-    this.tremolo.connect(this.dryGain);
-    this.tremolo.connect(this.fxSendGain);
+    this.postAmpMod.connect(this.dryGain);
+    this.postAmpMod.connect(this.fxSendGain);
     this.dryGain.connect(this.master);
 
     this.buildChorusSection();
@@ -213,13 +181,13 @@ export class Synth {
 
   buildChorusSection() {
     this.chorusDelay = this.ctx.createDelay(0.05);
-    this.chorusDelay.delayTime.value = this.chorusState.baseDelay;
+    this.chorusDelay.delayTime.value = 0.018;
 
     this.chorusDryGain = this.ctx.createGain();
     this.chorusWetGain = this.ctx.createGain();
     this.chorusOut = this.ctx.createGain();
 
-    this.setChorusMix(this.chorusState.mix);
+    this.setChorusMix(this.baseValues.chorusMix);
 
     this.chorusDryGain.connect(this.chorusOut);
     this.chorusDelay.connect(this.chorusWetGain);
@@ -227,10 +195,10 @@ export class Synth {
 
     this.chorusLFO = this.ctx.createOscillator();
     this.chorusLFO.type = "sine";
-    this.chorusLFO.frequency.value = this.chorusState.rate;
+    this.chorusLFO.frequency.value = this.baseValues.chorusRate;
 
     this.chorusDepthGain = this.ctx.createGain();
-    this.chorusDepthGain.gain.value = this.chorusState.depthMs / 1000;
+    this.chorusDepthGain.gain.value = this.baseValues.chorusDepthMs / 1000;
 
     this.chorusLFO.connect(this.chorusDepthGain);
     this.chorusDepthGain.connect(this.chorusDelay.delayTime);
@@ -239,14 +207,14 @@ export class Synth {
 
   buildDelaySection() {
     this.delayNode = this.ctx.createDelay(1.0);
-    this.delayNode.delayTime.value = this.delayState.time;
+    this.delayNode.delayTime.value = this.baseValues.delayTime;
 
     this.delayBypassGain = this.ctx.createGain();
     this.delayWetGain = this.ctx.createGain();
     this.delayOut = this.ctx.createGain();
 
     this.delayFeedbackGain = this.ctx.createGain();
-    this.delayFeedbackGain.gain.value = this.delayState.feedback;
+    this.delayFeedbackGain.gain.value = this.baseValues.delayFeedback;
 
     this.delayTone = this.ctx.createBiquadFilter();
     this.delayTone.type = "lowpass";
@@ -256,7 +224,7 @@ export class Synth {
     this.delaySaturator.curve = this.createSaturatorCurve();
     this.delaySaturator.oversample = "2x";
 
-    this.setDelayMix(this.delayState.mix);
+    this.setDelayMix(this.baseValues.delayMix);
 
     this.delayBypassGain.connect(this.delayOut);
     this.delayNode.connect(this.delayWetGain);
@@ -270,13 +238,13 @@ export class Synth {
 
   buildReverbSection() {
     this.reverbConvolver = this.ctx.createConvolver();
-    this.reverbConvolver.buffer = this.createImpulseResponse(this.reverbState.decay);
+    this.reverbConvolver.buffer = this.createImpulseResponse(this.baseValues.reverbDecay);
 
     this.reverbBypassGain = this.ctx.createGain();
     this.reverbWetGain = this.ctx.createGain();
     this.reverbOut = this.ctx.createGain();
 
-    this.setReverbMix(this.reverbState.mix);
+    this.setReverbMix(this.baseValues.reverbMix);
 
     this.reverbBypassGain.connect(this.reverbOut);
     this.reverbConvolver.connect(this.reverbWetGain);
@@ -297,31 +265,38 @@ export class Synth {
     });
 
     this.params.set("master.gain", (norm) => {
+      this.baseValues.masterGain = norm;
       this.master.gain.setValueAtTime(norm, this.ctx.currentTime);
     });
 
     this.params.set("filter.cutoff", (norm) => {
-      this.baseCutoff = this.denormalizeLog(norm, 60, 12000);
+      this.baseValues.filterCutoff = this.denormalizeLog(norm, 60, 12000);
     });
 
     this.params.set("lfo.rate", (norm) => {
-      const rate = this.denormalizeLog(norm, 0.1, 20);
-      this.lfoState.rate = rate;
-      this.lfo.frequency.setValueAtTime(rate, this.ctx.currentTime);
+      this.baseValues.lfoRate = this.denormalizeLog(norm, 0.1, 20);
+    });
+
+    this.params.set("macro1.value", (norm) => {
+      this.baseValues.macro1 = norm;
+    });
+
+    this.params.set("macro2.value", (norm) => {
+      this.baseValues.macro2 = norm;
     });
 
     this.params.set("chorus.mix", (norm) => {
-      this.chorusState.mix = norm;
+      this.baseValues.chorusMix = norm;
       this.setChorusMix(norm);
     });
 
     this.params.set("delay.mix", (norm) => {
-      this.delayState.mix = norm;
+      this.baseValues.delayMix = norm;
       this.setDelayMix(norm);
     });
 
     this.params.set("reverb.mix", (norm) => {
-      this.reverbState.mix = norm;
+      this.baseValues.reverbMix = norm;
       this.setReverbMix(norm);
     });
 
@@ -338,24 +313,20 @@ export class Synth {
     });
 
     this.discreteParams.set("osc1.detune", (value) => {
-      this.osc1.parameters.get("detune").setValueAtTime(value, this.ctx.currentTime);
+      this.baseDetune.osc1 = value;
     });
 
     this.discreteParams.set("osc2.detune", (value) => {
-      this.osc2.parameters.get("detune").setValueAtTime(value, this.ctx.currentTime);
+      this.baseDetune.osc2 = value;
     });
 
     this.discreteParams.set("osc3.detune", (value) => {
-      this.osc3.parameters.get("detune").setValueAtTime(value, this.ctx.currentTime);
+      this.baseDetune.osc3 = value;
     });
 
     this.discreteParams.set("filter.resonance", (value) => {
-      this.baseResonance = value;
+      this.baseValues.filterResonance = value;
       this.filter.Q.setValueAtTime(value, this.ctx.currentTime);
-    });
-
-    this.discreteParams.set("filter.envAmount", (value) => {
-      this.filterEnvAmount = value;
     });
 
     this.discreteParams.set("env.attack", (value) => {
@@ -374,181 +345,175 @@ export class Synth {
       this.env.release = value;
     });
 
-    this.discreteParams.set("lfo.pitchDepth", (value) => {
-      this.lfoState.pitchDepth = value;
-      this.lfoPitchGain.gain.setValueAtTime(value, this.ctx.currentTime);
-    });
-
-    this.discreteParams.set("lfo.filterDepth", (value) => {
-      this.lfoState.filterDepth = value;
-      this.lfoFilterGain.gain.setValueAtTime(value, this.ctx.currentTime);
-    });
-
-    this.discreteParams.set("lfo.ampDepth", (value) => {
-      this.lfoState.ampDepth = value;
-      this.setAmpLfoDepth(value);
-    });
-
     this.discreteParams.set("chorus.rate", (value) => {
-      this.chorusState.rate = value;
+      this.baseValues.chorusRate = value;
       this.chorusLFO.frequency.setValueAtTime(value, this.ctx.currentTime);
     });
 
     this.discreteParams.set("chorus.depth", (value) => {
-      this.chorusState.depthMs = value;
+      this.baseValues.chorusDepthMs = value;
       this.chorusDepthGain.gain.setValueAtTime(value / 1000, this.ctx.currentTime);
     });
 
     this.discreteParams.set("fx.send", (value) => {
-      this.fxSend = value;
+      this.baseValues.fxSend = value;
       this.fxSendGain.gain.setValueAtTime(value, this.ctx.currentTime);
     });
 
     this.discreteParams.set("delay.time", (value) => {
-      this.delayState.time = value;
+      this.baseValues.delayTime = value;
       this.delayNode.delayTime.setValueAtTime(value, this.ctx.currentTime);
     });
 
     this.discreteParams.set("delay.feedback", (value) => {
-      this.delayState.feedback = value;
+      this.baseValues.delayFeedback = value;
       this.delayFeedbackGain.gain.setValueAtTime(value, this.ctx.currentTime);
     });
 
     this.discreteParams.set("reverb.decay", (value) => {
-      this.reverbState.decay = value;
+      this.baseValues.reverbDecay = value;
       this.reverbConvolver.buffer = this.createImpulseResponse(value);
     });
   }
 
-  setParam(key, norm) {
-    const setter = this.params.get(key);
-    if (setter) setter(norm);
+  setRoute(index, patch) {
+    if (!this.routes[index]) return;
+    this.routes[index] = { ...this.routes[index], ...patch };
   }
 
-  setDiscreteParam(key, value) {
-    const setter = this.discreteParams.get(key);
-    if (setter) setter(value);
+  tick() {
+    const now = this.ctx.currentTime;
+
+    this.updateEnvelope(now);
+    this.applyModMatrix(now);
   }
 
-  noteOn(freq) {
-    const t = this.ctx.currentTime;
-    this.currentNoteFrequency = freq;
-    this.isNoteHeld = true;
+  updateEnvelope(now) {
+    const env = this.env;
 
-    this.setAllFrequencies(freq);
+    if (env.stage === "idle") {
+      env.value = 0;
+    } else if (env.stage === "attack") {
+      const progress = Math.min(1, (now - env.stageStart) / Math.max(0.0001, env.attack));
+      env.value = this.lerp(env.stageStartValue, 1, progress);
+      if (progress >= 1) {
+        env.stage = "decay";
+        env.stageStart = now;
+        env.stageStartValue = 1;
+      }
+    } else if (env.stage === "decay") {
+      const progress = Math.min(1, (now - env.stageStart) / Math.max(0.0001, env.decay));
+      env.value = this.lerp(env.stageStartValue, env.sustain, progress);
+      if (progress >= 1) {
+        env.stage = "sustain";
+        env.stageStart = now;
+        env.stageStartValue = env.sustain;
+      }
+    } else if (env.stage === "sustain") {
+      env.value = env.sustain;
+    } else if (env.stage === "release") {
+      const progress = Math.min(1, (now - env.stageStart) / Math.max(0.0001, env.release));
+      env.value = this.lerp(env.stageStartValue, 0, progress);
+      if (progress >= 1) {
+        env.stage = "idle";
+        env.stageStart = now;
+        env.stageStartValue = 0;
+        env.value = 0;
+      }
+    }
 
-    this.amp.gain.cancelScheduledValues(t);
-    this.filter.frequency.cancelScheduledValues(t);
-
-    const currentAmp = Math.max(this.amp.gain.value, 0.0001);
-    this.amp.gain.setValueAtTime(currentAmp, t);
-    this.amp.gain.linearRampToValueAtTime(1.0, t + this.env.attack);
-    this.amp.gain.linearRampToValueAtTime(this.env.sustain, t + this.env.attack + this.env.decay);
-
-    const peakCutoff = Math.min(16000, this.baseCutoff + this.filterEnvAmount);
-
-    this.filter.frequency.setValueAtTime(this.baseCutoff, t);
-    this.filter.frequency.linearRampToValueAtTime(peakCutoff, t + this.env.attack);
-    this.filter.frequency.linearRampToValueAtTime(
-      this.baseCutoff + this.filterEnvAmount * this.env.sustain * 0.5,
-      t + this.env.attack + this.env.decay
-    );
+    this.amp.gain.setValueAtTime(env.value, now);
   }
 
-  noteOff() {
-    const t = this.ctx.currentTime;
-    this.isNoteHeld = false;
+  applyModMatrix(now) {
+    const lfo = Math.sin(now * Math.PI * 2 * this.baseValues.lfoRate);
+    const env = this.env.value;
+    const macro1 = this.baseValues.macro1;
+    const macro2 = this.baseValues.macro2;
 
-    this.amp.gain.cancelScheduledValues(t);
-    this.amp.gain.setValueAtTime(Math.max(this.amp.gain.value, 0.0001), t);
-    this.amp.gain.linearRampToValueAtTime(0, t + this.env.release);
+    const sources = {
+      lfo,
+      env,
+      macro1,
+      macro2,
+    };
 
-    this.filter.frequency.cancelScheduledValues(t);
-    this.filter.frequency.setValueAtTime(this.filter.frequency.value, t);
-    this.filter.frequency.linearRampToValueAtTime(this.baseCutoff, t + this.env.release);
+    const sums = {
+      "osc1.detune": 0,
+      "osc2.detune": 0,
+      "osc3.detune": 0,
+      "filter.cutoff": 0,
+      "amp.level": 0,
+      "chorus.mix": 0,
+      "delay.mix": 0,
+      "reverb.mix": 0,
+    };
+
+    for (const route of this.routes) {
+      const sourceValue = sources[route.source] ?? 0;
+      const amount = route.amount ?? 0;
+      const dest = route.dest;
+      if (!(dest in sums)) continue;
+
+      sums[dest] += sourceValue * amount * this.getDestinationScale(dest);
+    }
+
+    this.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1 + sums["osc1.detune"], now);
+    this.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2 + sums["osc2.detune"], now);
+    this.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3 + sums["osc3.detune"], now);
+
+    const finalCutoff = this.clamp(this.baseValues.filterCutoff + sums["filter.cutoff"], 40, 16000);
+    this.filter.frequency.setValueAtTime(finalCutoff, now);
+
+    const finalAmpMod = this.clamp(1 + sums["amp.level"], 0, 1.5);
+    this.postAmpMod.gain.setValueAtTime(finalAmpMod, now);
+
+    this.setChorusMix(this.clamp(this.baseValues.chorusMix + sums["chorus.mix"], 0, 1));
+    this.setDelayMix(this.clamp(this.baseValues.delayMix + sums["delay.mix"], 0, 1));
+    this.setReverbMix(this.clamp(this.baseValues.reverbMix + sums["reverb.mix"], 0, 1));
   }
 
-  setAllFrequencies(freq) {
-    this.osc1.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
-    this.osc2.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
-    this.osc3.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
-  }
-
-  setAmpLfoDepth(depth) {
-    this.tremolo.gain.setValueAtTime(1 - depth / 2, this.ctx.currentTime);
-    this.lfoAmpGain.gain.setValueAtTime(depth / 2, this.ctx.currentTime);
-  }
-
-  setChorusMix(mix) {
-    this.chorusDryGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
-    this.chorusWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
-  }
-
-  setDelayMix(mix) {
-    this.delayBypassGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
-    this.delayWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
-  }
-
-  setReverbMix(mix) {
-    this.reverbBypassGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
-    this.reverbWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
-  }
-
-  waveToIndex(wave) {
-    switch (wave) {
-      case "sine":
-        return 0;
-      case "sawtooth":
-        return 1;
-      case "square":
-        return 2;
-      case "triangle":
-        return 3;
+  getDestinationScale(dest) {
+    switch (dest) {
+      case "osc1.detune":
+      case "osc2.detune":
+      case "osc3.detune":
+        return 50;
+      case "filter.cutoff":
+        return 3000;
+      case "amp.level":
+        return 0.8;
+      case "chorus.mix":
+      case "delay.mix":
+      case "reverb.mix":
+        return 0.7;
       default:
         return 1;
     }
   }
 
-  denormalizeLog(norm, min, max) {
-    const minLog = Math.log(min);
-    const maxLog = Math.log(max);
-    return Math.exp(minLog + norm * (maxLog - minLog));
+  noteOn(freq) {
+    const now = this.ctx.currentTime;
+    this.currentNoteFrequency = freq;
+    this.noteHeld = true;
+
+    this.setAllFrequencies(freq);
+
+    this.env.stage = "attack";
+    this.env.stageStart = now;
+    this.env.stageStartValue = this.env.value;
   }
 
-  createSaturatorCurve() {
-    const curve = new Float32Array(1024);
-    for (let i = 0; i < 1024; i++) {
-      const x = (i / 512) - 1;
-      curve[i] = Math.tanh(x * 2.5);
-    }
-    return curve;
+  noteOff() {
+    const now = this.ctx.currentTime;
+    this.noteHeld = false;
+
+    this.env.stage = "release";
+    this.env.stageStart = now;
+    this.env.stageStartValue = this.env.value;
   }
 
-  createImpulseResponse(decaySeconds) {
-    const rate = this.ctx.sampleRate;
-    const length = Math.max(1, Math.floor(rate * decaySeconds));
-    const impulse = this.ctx.createBuffer(2, length, rate);
-
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5);
-      }
-    }
-
-    return impulse;
-  }
-
-  initMIDI() {
-    if (!("requestMIDIAccess" in navigator)) return;
-
-    navigator.requestMIDIAccess().then((access) => {
-      access.inputs.forEach((input) => {
-        input.onmidimessage = (e) => this.mpe.handleMIDI(e);
-      });
-    }).catch(() => {
-      // ignore
-    });
-  }
-                    }
+  setAllFrequencies(freq) {
+    this.osc1.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
+    this.osc2.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
+    this
