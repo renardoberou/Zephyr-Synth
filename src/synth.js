@@ -573,7 +573,6 @@ export class Synth {
         const t = i / length;
         data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5);
       }
-    }
 
     return impulse;
   }
