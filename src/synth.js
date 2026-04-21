@@ -519,6 +519,12 @@ export class Synth {
     this.osc3.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
   }
 
+  applyCurrentDetunes(time) {
+  this.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1, time);
+  this.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2, time);
+  this.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3, time);
+}
+  
   setChorusMix(mix) {
     this.chorusDryGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
     this.chorusWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
