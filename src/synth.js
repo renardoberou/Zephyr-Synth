@@ -376,6 +376,20 @@ export class Synth {
     });
   }
 
+  setParam(key, value) {
+    const handler = this.params.get(key);
+    if (handler) {
+      handler(value);
+    }
+  }
+
+  setDiscreteParam(key, value) {
+    const handler = this.discreteParams.get(key);
+    if (handler) {
+      handler(value);
+    }
+  }
+
   setRoute(index, patch) {
     if (!this.routes[index]) return;
     this.routes[index] = { ...this.routes[index], ...patch };
