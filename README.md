@@ -1,6 +1,6 @@
 # Zephyr Synth
 
-Phase 1 of the browser synth.
+Phase 2 of the browser synth.
 
 ## Current features
 
@@ -8,7 +8,10 @@ Phase 1 of the browser synth.
 - waveform selection per oscillator
 - detune per oscillator
 - oscillator mixer
-- master gain
+- low-pass filter
+- resonance
+- filter envelope amount
+- ADSR amplitude envelope
 - on-screen keyboard
 - AudioWorklet oscillator
 
@@ -18,11 +21,9 @@ Phase 1 of the browser synth.
 
 ## Next phases
 
-- filter
-- ADSR
 - LFO
-- FX
-- modulation matrix
+- modulation routing
+- chorus / tape / reverb
 - macros
 - morphing
-- MPE UI
+- MPE visual layer
