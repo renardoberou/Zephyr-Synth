@@ -1,6 +1,6 @@
 # Zephyr Synth
 
-Larger-step build: subtractive core plus modulation and FX.
+This build adds a usable modulation system and macro control.
 
 ## Current features
 
@@ -10,12 +10,17 @@ Larger-step build: subtractive core plus modulation and FX.
 - oscillator mixer
 - low-pass filter
 - resonance
-- filter envelope amount
 - ADSR amplitude envelope
-- global LFO with:
-  - pitch modulation
-  - filter modulation
-  - amplitude modulation
+- LFO source
+- 2 macro sources
+- 4-slot modulation matrix
+- destinations:
+  - oscillator detune
+  - filter cutoff
+  - amp level
+  - chorus mix
+  - delay mix
+  - reverb mix
 - chorus
 - tape-style delay
 - reverb
@@ -28,8 +33,8 @@ Larger-step build: subtractive core plus modulation and FX.
 
 ## Next major systems
 
-- true modulation routing matrix
-- macro controls
+- preset save/load
 - preset morphing
 - MPE-aware visual system
+- per-note expression routing
 - more analog-style oscillator behavior
