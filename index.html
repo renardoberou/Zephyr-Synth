@@ -360,6 +360,37 @@
           </div>
         </div>
       </section>
+
+      <section class="panel">
+        <h2>LFO</h2>
+        <div class="osc-grid">
+          <div class="knob" data-param="lfo.rate">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="lfo-rate-readout">3.0 Hz</div>
+          </div>
+
+          <div class="param-list">
+            <div class="param">
+              <label for="lfo-pitch-depth">Pitch Depth (cents)</label>
+              <input id="lfo-pitch-depth" type="range" min="0" max="50" step="1" value="0" />
+            </div>
+            <div class="status" id="lfo-pitch-depth-readout">0 ct</div>
+
+            <div class="param">
+              <label for="lfo-filter-depth">Filter Depth (Hz)</label>
+              <input id="lfo-filter-depth" type="range" min="0" max="3000" step="10" value="600" />
+            </div>
+            <div class="status" id="lfo-filter-depth-readout">600 Hz</div>
+
+            <div class="param">
+              <label for="lfo-amp-depth">Amp Depth</label>
+              <input id="lfo-amp-depth" type="range" min="0" max="1" step="0.01" value="0" />
+            </div>
+            <div class="status" id="lfo-amp-depth-readout">0.00</div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <section class="keyboard">
@@ -368,7 +399,7 @@
     </section>
 
     <div class="footer-note">
-      Phase 2: 3 oscillators, low-pass filter, ADSR envelope, and playable keyboard.
+      Phase 3: filter, ADSR, and LFO modulation for pitch, filter cutoff, and amplitude.
     </div>
   </div>
 
