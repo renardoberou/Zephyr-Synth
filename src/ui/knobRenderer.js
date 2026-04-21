@@ -72,23 +72,6 @@ export class KnobRenderer {
     ctx.arc(this.cx, this.cy, this.r, start, angle);
     ctx.stroke();
 
-    if (morphDelta > 0.001) {
-      ctx.beginPath();
-      ctx.strokeStyle = `rgba(255,102,0,${Math.min(1, morphDelta)})`;
-      ctx.lineWidth = 14;
-      ctx.arc(this.cx, this.cy, this.r, start, angle);
-      ctx.stroke();
-    }
-
-    if (modValue !== null) {
-      const modAngle = start + span * modValue;
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(0,180,255,0.85)";
-      ctx.lineWidth = 3;
-      ctx.arc(this.cx, this.cy, this.r + 10, modAngle - 0.12, modAngle + 0.12);
-      ctx.stroke();
-    }
-
     const px = this.cx + Math.cos(angle) * this.r;
     const py = this.cy + Math.sin(angle) * this.r;
 
