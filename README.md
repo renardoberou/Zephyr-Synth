@@ -1,6 +1,6 @@
 # Zephyr Synth
 
-Phase 3 of the browser synth.
+Larger-step build: subtractive core plus modulation and FX.
 
 ## Current features
 
@@ -12,10 +12,13 @@ Phase 3 of the browser synth.
 - resonance
 - filter envelope amount
 - ADSR amplitude envelope
-- global LFO
-- pitch modulation
-- filter modulation
-- amplitude modulation
+- global LFO with:
+  - pitch modulation
+  - filter modulation
+  - amplitude modulation
+- chorus
+- tape-style delay
+- reverb
 - on-screen keyboard
 - AudioWorklet oscillator
 
@@ -23,10 +26,10 @@ Phase 3 of the browser synth.
 
 `https://renardoberou.github.io/Zephyr-Synth/`
 
-## Next phases
+## Next major systems
 
-- chorus / tape / reverb
-- modulation routing matrix
-- macros
-- morphing
-- MPE visual layer
+- true modulation routing matrix
+- macro controls
+- preset morphing
+- MPE-aware visual system
+- more analog-style oscillator behavior
