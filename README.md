@@ -1,6 +1,6 @@
 # Zephyr Synth
 
-This build adds a usable modulation system and macro control.
+This build adds a flexible modulation system.
 
 ## Current features
 
@@ -10,22 +10,33 @@ This build adds a usable modulation system and macro control.
 - oscillator mixer
 - low-pass filter
 - resonance
-- ADSR amplitude envelope
+- ADSR envelope
 - LFO source
 - 2 macro sources
 - 4-slot modulation matrix
-- destinations:
-  - oscillator detune
-  - filter cutoff
-  - amp level
-  - chorus mix
-  - delay mix
-  - reverb mix
 - chorus
 - tape-style delay
 - reverb
 - on-screen keyboard
 - AudioWorklet oscillator
+
+## Matrix sources
+
+- LFO
+- ENV
+- MACRO 1
+- MACRO 2
+
+## Matrix destinations
+
+- OSC1 detune
+- OSC2 detune
+- OSC3 detune
+- Filter cutoff
+- Amp level
+- Chorus mix
+- Delay mix
+- Reverb mix
 
 ## Live site
 
@@ -37,4 +48,4 @@ This build adds a usable modulation system and macro control.
 - preset morphing
 - MPE-aware visual system
 - per-note expression routing
-- more analog-style oscillator behavior
+- more analog oscillator behavior
