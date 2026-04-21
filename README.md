@@ -1,27 +1,28 @@
 # Zephyr Synth
 
-A small browser synth scaffold using the Web Audio API and an AudioWorklet oscillator.
+Phase 1 of the browser synth.
 
-## What it currently does
+## Current features
 
-- Loads a simple oscillator through an AudioWorklet
-- Starts audio only after a user gesture
-- Renders a canvas knob UI
-- Lets you control output volume by dragging the knob
+- 3 oscillators
+- waveform selection per oscillator
+- detune per oscillator
+- oscillator mixer
+- master gain
+- on-screen keyboard
+- AudioWorklet oscillator
 
-## Run
-
-This repo is configured to work on GitHub Pages.
-
-Open:
+## Live site
 
 `https://renardoberou.github.io/Zephyr-Synth/`
 
-## Files
+## Next phases
 
-- `index.html` — page and styles
-- `main.js` — UI and app boot
-- `src/synth.js` — synth engine
-- `src/mpe.js` — MIDI/MPE placeholder
-- `src/ui/*` — canvas UI
-- `src/worklets/vcoProcessor.js` — oscillator DSP
+- filter
+- ADSR
+- LFO
+- FX
+- modulation matrix
+- macros
+- morphing
+- MPE UI
