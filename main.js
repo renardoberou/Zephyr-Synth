@@ -13,13 +13,18 @@ const defaults = {
   "osc2.gain": 0.5,
   "osc3.gain": 0.5,
   "master.gain": 0.6,
+  "filter.cutoff": normalizeLog(1200, 60, 12000),
 };
 
-const readouts = {
-  "osc1.gain": document.getElementById("osc1-gain-readout"),
-  "osc2.gain": document.getElementById("osc2-gain-readout"),
-  "osc3.gain": document.getElementById("osc3-gain-readout"),
-  "master.gain": document.getElementById("master-gain-readout"),
+const knobReadouts = {
+  "osc1.gain": (v) => document.getElementById("osc1-gain-readout").textContent = v.toFixed(2),
+  "osc2.gain": (v) => document.getElementById("osc2-gain-readout").textContent = v.toFixed(2),
+  "osc3.gain": (v) => document.getElementById("osc3-gain-readout").textContent = v.toFixed(2),
+  "master.gain": (v) => document.getElementById("master-gain-readout").textContent = v.toFixed(2),
+  "filter.cutoff": (v) => {
+    const hz = denormalizeLog(v, 60, 12000);
+    document.getElementById("filter-cutoff-readout").textContent = `${Math.round(hz)} Hz`;
+  },
 };
 
 const statusEl = document.getElementById("status");
@@ -47,7 +52,7 @@ document.querySelectorAll(".knob").forEach((el) => {
 
   synth.setParam(paramKey, value);
   ui.update(paramKey, { value, morph: 0, mod: null });
-  if (readouts[paramKey]) readouts[paramKey].textContent = value.toFixed(2);
+  if (knobReadouts[paramKey]) knobReadouts[paramKey](value);
 
   el.addEventListener("pointerdown", (e) => {
     lastY = e.clientY;
@@ -66,9 +71,7 @@ document.querySelectorAll(".knob").forEach((el) => {
     synth.setParam(paramKey, value);
     ui.update(paramKey, { value, morph: 0, mod: null });
 
-    if (readouts[paramKey]) {
-      readouts[paramKey].textContent = value.toFixed(2);
-    }
+    if (knobReadouts[paramKey]) knobReadouts[paramKey](value);
   });
 
   const endDrag = (e) => {
@@ -100,35 +103,29 @@ waveSelects.forEach(([id, param]) => {
 });
 
 const detuneControls = [
-  ["osc1-detune", "osc1.detune", "osc1-detune-readout"],
-  ["osc2-detune", "osc2.detune", "osc2-detune-readout"],
-  ["osc3-detune", "osc3.detune", "osc3-detune-readout"],
+  ["osc1-detune", "osc1.detune", "osc1-detune-readout", " ct"],
+  ["osc2-detune", "osc2.detune", "osc2-detune-readout", " ct"],
+  ["osc3-detune", "osc3.detune", "osc3-detune-readout", " ct"],
+  ["filter-resonance", "filter.resonance", "filter-resonance-readout", ""],
+  ["filter-env-amount", "filter.envAmount", "filter-env-amount-readout", ""],
+  ["env-attack", "env.attack", "env-attack-readout", " s", 3],
+  ["env-decay", "env.decay", "env-decay-readout", " s", 2],
+  ["env-sustain", "env.sustain", "env-sustain-readout", "", 2],
+  ["env-release", "env.release", "env-release-readout", " s", 2],
 ];
 
-detuneControls.forEach(([id, param, readoutId]) => {
+detuneControls.forEach(([id, param, readoutId, suffix, decimals]) => {
   const el = document.getElementById(id);
   const readout = document.getElementById(readoutId);
 
   synth.setDiscreteParam(param, Number(el.value));
-  readout.textContent = `${el.value} ct`;
+  readout.textContent = `${Number(el.value).toFixed(decimals ?? 0)}${suffix}`;
 
   el.addEventListener("input", () => {
     const value = Number(el.value);
     synth.setDiscreteParam(param, value);
-    readout.textContent = `${value} ct`;
+    readout.textContent = `${value.toFixed(decimals ?? 0)}${suffix}`;
   });
-});
-
-const baseFrequency = document.getElementById("base-frequency");
-const baseFrequencyReadout = document.getElementById("base-frequency-readout");
-
-synth.setDiscreteParam("base.frequency", Number(baseFrequency.value));
-baseFrequencyReadout.textContent = `${baseFrequency.value} Hz`;
-
-baseFrequency.addEventListener("input", () => {
-  const value = Number(baseFrequency.value);
-  synth.setDiscreteParam("base.frequency", value);
-  baseFrequencyReadout.textContent = `${value} Hz`;
 });
 
 const notes = [
@@ -175,6 +172,16 @@ notes.forEach((note) => {
 
   keysEl.appendChild(btn);
 });
+
+function normalizeLog(value, min, max) {
+  return (Math.log(value) - Math.log(min)) / (Math.log(max) - Math.log(min));
+}
+
+function denormalizeLog(norm, min, max) {
+  const minLog = Math.log(min);
+  const maxLog = Math.log(max);
+  return Math.exp(minLog + norm * (maxLog - minLog));
+}
 
 function loop() {
   ui.frame();
