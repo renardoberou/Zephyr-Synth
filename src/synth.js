@@ -516,4 +516,87 @@ export class Synth {
   setAllFrequencies(freq) {
     this.osc1.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
     this.osc2.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
-    this
+    this.osc3.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
+  }
+
+  setChorusMix(mix) {
+    this.chorusDryGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
+    this.chorusWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
+  }
+
+  setDelayMix(mix) {
+    this.delayBypassGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
+    this.delayWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
+  }
+
+  setReverbMix(mix) {
+    this.reverbBypassGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
+    this.reverbWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
+  }
+
+  waveToIndex(wave) {
+    switch (wave) {
+      case "sine":
+        return 0;
+      case "sawtooth":
+        return 1;
+      case "square":
+        return 2;
+      case "triangle":
+        return 3;
+      default:
+        return 1;
+    }
+  }
+
+  denormalizeLog(norm, min, max) {
+    const minLog = Math.log(min);
+    const maxLog = Math.log(max);
+    return Math.exp(minLog + norm * (maxLog - minLog));
+  }
+
+  createSaturatorCurve() {
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) {
+      const x = (i / 512) - 1;
+      curve[i] = Math.tanh(x * 2.5);
+    }
+    return curve;
+  }
+
+  createImpulseResponse(decaySeconds) {
+    const rate = this.ctx.sampleRate;
+    const length = Math.max(1, Math.floor(rate * decaySeconds));
+    const impulse = this.ctx.createBuffer(2, length, rate);
+
+    for (let ch = 0; ch < 2; ch++) {
+      const data = impulse.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        const t = i / length;
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5);
+      }
+    }
+
+    return impulse;
+  }
+
+  lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  clamp(v, min, max) {
+    return Math.min(max, Math.max(min, v));
+  }
+
+  initMIDI() {
+    if (!("requestMIDIAccess" in navigator)) return;
+
+    navigator.requestMIDIAccess().then((access) => {
+      access.inputs.forEach((input) => {
+        input.onmidimessage = (e) => this.mpe.handleMIDI(e);
+      });
+    }).catch(() => {
+      // ignore
+    });
+  }
+                        }
