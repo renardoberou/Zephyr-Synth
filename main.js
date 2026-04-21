@@ -14,6 +14,7 @@ const defaults = {
   "osc3.gain": 0.5,
   "master.gain": 0.6,
   "filter.cutoff": normalizeLog(1200, 60, 12000),
+  "lfo.rate": normalizeLog(3, 0.1, 20),
 };
 
 const knobReadouts = {
@@ -24,6 +25,10 @@ const knobReadouts = {
   "filter.cutoff": (v) => {
     const hz = denormalizeLog(v, 60, 12000);
     document.getElementById("filter-cutoff-readout").textContent = `${Math.round(hz)} Hz`;
+  },
+  "lfo.rate": (v) => {
+    const hz = denormalizeLog(v, 0.1, 20);
+    document.getElementById("lfo-rate-readout").textContent = `${hz.toFixed(1)} Hz`;
   },
 };
 
@@ -102,7 +107,7 @@ waveSelects.forEach(([id, param]) => {
   });
 });
 
-const detuneControls = [
+const sliders = [
   ["osc1-detune", "osc1.detune", "osc1-detune-readout", " ct"],
   ["osc2-detune", "osc2.detune", "osc2-detune-readout", " ct"],
   ["osc3-detune", "osc3.detune", "osc3-detune-readout", " ct"],
@@ -112,9 +117,12 @@ const detuneControls = [
   ["env-decay", "env.decay", "env-decay-readout", " s", 2],
   ["env-sustain", "env.sustain", "env-sustain-readout", "", 2],
   ["env-release", "env.release", "env-release-readout", " s", 2],
+  ["lfo-pitch-depth", "lfo.pitchDepth", "lfo-pitch-depth-readout", " ct"],
+  ["lfo-filter-depth", "lfo.filterDepth", "lfo-filter-depth-readout", " Hz"],
+  ["lfo-amp-depth", "lfo.ampDepth", "lfo-amp-depth-readout", "", 2],
 ];
 
-detuneControls.forEach(([id, param, readoutId, suffix, decimals]) => {
+sliders.forEach(([id, param, readoutId, suffix, decimals]) => {
   const el = document.getElementById(id);
   const readout = document.getElementById(readoutId);
 
