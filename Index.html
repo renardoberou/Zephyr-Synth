@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Zephyr Synth</title>
+  <style>
+    body {
+      background:#1A1A1A;
+      color:#fff;
+      font-family:sans-serif;
+      text-align:center;
+    }
+    canvas {
+      width:120px;
+      height:120px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Zephyr Synth</h1>
+
+<button id="start">Start Audio</button>
+
+<div class="knob" data-param="volume">
+  <canvas class="bg"></canvas>
+  <canvas class="fg"></canvas>
+</div>
+
+<script type="module" src="./main.js"></script>
+
+</body>
+</html>
