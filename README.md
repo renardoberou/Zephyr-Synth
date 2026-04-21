@@ -1,6 +1,6 @@
 # Zephyr Synth
 
-Phase 2 of the browser synth.
+Phase 3 of the browser synth.
 
 ## Current features
 
@@ -12,6 +12,10 @@ Phase 2 of the browser synth.
 - resonance
 - filter envelope amount
 - ADSR amplitude envelope
+- global LFO
+- pitch modulation
+- filter modulation
+- amplitude modulation
 - on-screen keyboard
 - AudioWorklet oscillator
 
@@ -21,9 +25,8 @@ Phase 2 of the browser synth.
 
 ## Next phases
 
-- LFO
-- modulation routing
 - chorus / tape / reverb
+- modulation routing matrix
 - macros
 - morphing
 - MPE visual layer
