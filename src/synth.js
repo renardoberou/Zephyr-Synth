@@ -10,6 +10,8 @@ export class Synth {
 
     this.master = null;
     this.mix = null;
+    this.filter = null;
+    this.amp = null;
 
     this.osc1 = null;
     this.osc2 = null;
@@ -20,6 +22,19 @@ export class Synth {
     this.osc3Gain = null;
 
     this.baseFrequency = 220;
+    this.currentNoteFrequency = 220;
+    this.isNoteHeld = false;
+
+    this.env = {
+      attack: 0.01,
+      decay: 0.35,
+      sustain: 0.65,
+      release: 0.45,
+    };
+
+    this.filterEnvAmount = 1800;
+    this.baseCutoff = 1200;
+    this.baseResonance = 0.5;
 
     this.params = new Map();
     this.discreteParams = new Map();
@@ -32,9 +47,20 @@ export class Synth {
     this.master.gain.value = 0.6;
     this.master.connect(this.ctx.destination);
 
+    this.amp = this.ctx.createGain();
+    this.amp.gain.value = 0;
+
+    this.filter = this.ctx.createBiquadFilter();
+    this.filter.type = "lowpass";
+    this.filter.frequency.value = this.baseCutoff;
+    this.filter.Q.value = this.baseResonance;
+
     this.mix = this.ctx.createGain();
     this.mix.gain.value = 1.0;
-    this.mix.connect(this.master);
+
+    this.mix.connect(this.filter);
+    this.filter.connect(this.amp);
+    this.amp.connect(this.master);
 
     this.osc1 = new AudioWorkletNode(this.ctx, "vco");
     this.osc2 = new AudioWorkletNode(this.ctx, "vco");
@@ -86,6 +112,14 @@ export class Synth {
       this.master.gain.setValueAtTime(norm, this.ctx.currentTime);
     });
 
+    this.params.set("filter.cutoff", (norm) => {
+      const cutoff = this.denormalizeLog(norm, 60, 12000);
+      this.baseCutoff = cutoff;
+      if (!this.isNoteHeld) {
+        this.filter.frequency.setValueAtTime(cutoff, this.ctx.currentTime);
+      }
+    });
+
     this.discreteParams.set("osc1.wave", (value) => {
       this.osc1.parameters.get("wave").setValueAtTime(this.waveToIndex(value), this.ctx.currentTime);
     });
@@ -110,9 +144,29 @@ export class Synth {
       this.osc3.parameters.get("detune").setValueAtTime(value, this.ctx.currentTime);
     });
 
-    this.discreteParams.set("base.frequency", (value) => {
-      this.baseFrequency = value;
-      this.setAllFrequencies(value);
+    this.discreteParams.set("filter.resonance", (value) => {
+      this.baseResonance = value;
+      this.filter.Q.setValueAtTime(value, this.ctx.currentTime);
+    });
+
+    this.discreteParams.set("filter.envAmount", (value) => {
+      this.filterEnvAmount = value;
+    });
+
+    this.discreteParams.set("env.attack", (value) => {
+      this.env.attack = value;
+    });
+
+    this.discreteParams.set("env.decay", (value) => {
+      this.env.decay = value;
+    });
+
+    this.discreteParams.set("env.sustain", (value) => {
+      this.env.sustain = value;
+    });
+
+    this.discreteParams.set("env.release", (value) => {
+      this.env.release = value;
     });
   }
 
@@ -138,11 +192,40 @@ export class Synth {
    * @param {number} freq
    */
   noteOn(freq) {
+    const t = this.ctx.currentTime;
+    this.currentNoteFrequency = freq;
+    this.isNoteHeld = true;
+
     this.setAllFrequencies(freq);
+
+    this.amp.gain.cancelScheduledValues(t);
+    this.filter.frequency.cancelScheduledValues(t);
+
+    this.amp.gain.setValueAtTime(this.amp.gain.value, t);
+    this.amp.gain.linearRampToValueAtTime(1.0, t + this.env.attack);
+    this.amp.gain.linearRampToValueAtTime(this.env.sustain, t + this.env.attack + this.env.decay);
+
+    const peakCutoff = Math.min(16000, this.baseCutoff + this.filterEnvAmount);
+
+    this.filter.frequency.setValueAtTime(this.baseCutoff, t);
+    this.filter.frequency.linearRampToValueAtTime(peakCutoff, t + this.env.attack);
+    this.filter.frequency.linearRampToValueAtTime(
+      this.baseCutoff + this.filterEnvAmount * this.env.sustain * 0.5,
+      t + this.env.attack + this.env.decay
+    );
   }
 
   noteOff() {
-    this.setAllFrequencies(this.baseFrequency);
+    const t = this.ctx.currentTime;
+    this.isNoteHeld = false;
+
+    this.amp.gain.cancelScheduledValues(t);
+    this.amp.gain.setValueAtTime(this.amp.gain.value, t);
+    this.amp.gain.linearRampToValueAtTime(0, t + this.env.release);
+
+    this.filter.frequency.cancelScheduledValues(t);
+    this.filter.frequency.setValueAtTime(this.filter.frequency.value, t);
+    this.filter.frequency.linearRampToValueAtTime(this.baseCutoff, t + this.env.release);
   }
 
   /**
@@ -171,6 +254,18 @@ export class Synth {
       default:
         return 1;
     }
+  }
+
+  /**
+   * @param {number} norm
+   * @param {number} min
+   * @param {number} max
+   * @returns {number}
+   */
+  denormalizeLog(norm, min, max) {
+    const minLog = Math.log(min);
+    const maxLog = Math.log(max);
+    return Math.exp(minLog + norm * (maxLog - minLog));
   }
 
   initMIDI() {
