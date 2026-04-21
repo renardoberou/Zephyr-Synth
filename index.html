@@ -29,7 +29,7 @@
     }
 
     .app {
-      max-width: 1200px;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 20px 16px 40px;
     }
@@ -71,7 +71,7 @@
 
     .synth-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
     }
 
@@ -220,7 +220,6 @@
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="osc1-gain-readout">0.70</div>
           </div>
-
           <div class="param-list">
             <div class="param">
               <label for="osc1-wave">Waveform</label>
@@ -231,7 +230,6 @@
                 <option value="triangle">Triangle</option>
               </select>
             </div>
-
             <div class="param">
               <label for="osc1-detune">Detune (cents)</label>
               <input id="osc1-detune" type="range" min="-50" max="50" step="1" value="0" />
@@ -249,7 +247,6 @@
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="osc2-gain-readout">0.50</div>
           </div>
-
           <div class="param-list">
             <div class="param">
               <label for="osc2-wave">Waveform</label>
@@ -260,7 +257,6 @@
                 <option value="triangle">Triangle</option>
               </select>
             </div>
-
             <div class="param">
               <label for="osc2-detune">Detune (cents)</label>
               <input id="osc2-detune" type="range" min="-50" max="50" step="1" value="-7" />
@@ -278,7 +274,6 @@
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="osc3-gain-readout">0.50</div>
           </div>
-
           <div class="param-list">
             <div class="param">
               <label for="osc3-wave">Waveform</label>
@@ -289,7 +284,6 @@
                 <option value="triangle">Triangle</option>
               </select>
             </div>
-
             <div class="param">
               <label for="osc3-detune">Detune (cents)</label>
               <input id="osc3-detune" type="range" min="-50" max="50" step="1" value="7" />
@@ -307,7 +301,6 @@
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="filter-cutoff-readout">1200 Hz</div>
           </div>
-
           <div class="param-list">
             <div class="param">
               <label for="filter-resonance">Resonance</label>
@@ -325,14 +318,13 @@
       </section>
 
       <section class="panel">
-        <h2>ENVELOPE</h2>
+        <h2>ENVELOPE / MASTER</h2>
         <div class="osc-grid">
           <div class="knob" data-param="master.gain">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="master-gain-readout">0.60</div>
           </div>
-
           <div class="param-list">
             <div class="param">
               <label for="env-attack">Attack</label>
@@ -369,7 +361,6 @@
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="lfo-rate-readout">3.0 Hz</div>
           </div>
-
           <div class="param-list">
             <div class="param">
               <label for="lfo-pitch-depth">Pitch Depth (cents)</label>
@@ -391,6 +382,78 @@
           </div>
         </div>
       </section>
+
+      <section class="panel">
+        <h2>CHORUS</h2>
+        <div class="osc-grid">
+          <div class="knob" data-param="chorus.mix">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="chorus-mix-readout">0.25</div>
+          </div>
+          <div class="param-list">
+            <div class="param">
+              <label for="chorus-rate">Rate (Hz)</label>
+              <input id="chorus-rate" type="range" min="0.1" max="5" step="0.1" value="0.8" />
+            </div>
+            <div class="status" id="chorus-rate-readout">0.8 Hz</div>
+
+            <div class="param">
+              <label for="chorus-depth">Depth (ms)</label>
+              <input id="chorus-depth" type="range" min="1" max="20" step="0.1" value="4" />
+            </div>
+            <div class="status" id="chorus-depth-readout">4.0 ms</div>
+
+            <div class="param">
+              <label for="fx-send">FX Send</label>
+              <input id="fx-send" type="range" min="0" max="1" step="0.01" value="0.45" />
+            </div>
+            <div class="status" id="fx-send-readout">0.45</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>TAPE DELAY</h2>
+        <div class="osc-grid">
+          <div class="knob" data-param="delay.mix">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="delay-mix-readout">0.20</div>
+          </div>
+          <div class="param-list">
+            <div class="param">
+              <label for="delay-time">Time (s)</label>
+              <input id="delay-time" type="range" min="0.05" max="0.8" step="0.01" value="0.28" />
+            </div>
+            <div class="status" id="delay-time-readout">0.28 s</div>
+
+            <div class="param">
+              <label for="delay-feedback">Feedback</label>
+              <input id="delay-feedback" type="range" min="0" max="0.95" step="0.01" value="0.35" />
+            </div>
+            <div class="status" id="delay-feedback-readout">0.35</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>REVERB</h2>
+        <div class="osc-grid">
+          <div class="knob" data-param="reverb.mix">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="reverb-mix-readout">0.25</div>
+          </div>
+          <div class="param-list">
+            <div class="param">
+              <label for="reverb-decay">Decay (s)</label>
+              <input id="reverb-decay" type="range" min="0.5" max="4" step="0.1" value="2.0" />
+            </div>
+            <div class="status" id="reverb-decay-readout">2.0 s</div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <section class="keyboard">
@@ -399,7 +462,7 @@
     </section>
 
     <div class="footer-note">
-      Phase 3: filter, ADSR, and LFO modulation for pitch, filter cutoff, and amplitude.
+      Larger step bundle: proper LFO routing plus chorus, tape delay, and reverb.
     </div>
   </div>
 
