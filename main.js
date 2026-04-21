@@ -15,6 +15,8 @@ const defaults = {
   "master.gain": 0.6,
   "filter.cutoff": normalizeLog(1200, 60, 12000),
   "lfo.rate": normalizeLog(3, 0.1, 20),
+  "macro1.value": 0.0,
+  "macro2.value": 0.0,
   "chorus.mix": 0.25,
   "delay.mix": 0.20,
   "reverb.mix": 0.25,
@@ -33,6 +35,8 @@ const knobReadouts = {
     const hz = denormalizeLog(v, 0.1, 20);
     document.getElementById("lfo-rate-readout").textContent = `${hz.toFixed(1)} Hz`;
   },
+  "macro1.value": (v) => document.getElementById("macro1-readout").textContent = v.toFixed(2),
+  "macro2.value": (v) => document.getElementById("macro2-readout").textContent = v.toFixed(2),
   "chorus.mix": (v) => document.getElementById("chorus-mix-readout").textContent = v.toFixed(2),
   "delay.mix": (v) => document.getElementById("delay-mix-readout").textContent = v.toFixed(2),
   "reverb.mix": (v) => document.getElementById("reverb-mix-readout").textContent = v.toFixed(2),
@@ -118,14 +122,10 @@ const sliders = [
   ["osc2-detune", "osc2.detune", "osc2-detune-readout", " ct"],
   ["osc3-detune", "osc3.detune", "osc3-detune-readout", " ct"],
   ["filter-resonance", "filter.resonance", "filter-resonance-readout", ""],
-  ["filter-env-amount", "filter.envAmount", "filter-env-amount-readout", ""],
   ["env-attack", "env.attack", "env-attack-readout", " s", 3],
   ["env-decay", "env.decay", "env-decay-readout", " s", 2],
   ["env-sustain", "env.sustain", "env-sustain-readout", "", 2],
   ["env-release", "env.release", "env-release-readout", " s", 2],
-  ["lfo-pitch-depth", "lfo.pitchDepth", "lfo-pitch-depth-readout", " ct"],
-  ["lfo-filter-depth", "lfo.filterDepth", "lfo-filter-depth-readout", " Hz"],
-  ["lfo-amp-depth", "lfo.ampDepth", "lfo-amp-depth-readout", "", 2],
   ["chorus-rate", "chorus.rate", "chorus-rate-readout", " Hz", 1],
   ["chorus-depth", "chorus.depth", "chorus-depth-readout", " ms", 1],
   ["fx-send", "fx.send", "fx-send-readout", "", 2],
@@ -147,6 +147,35 @@ sliders.forEach(([id, param, readoutId, suffix, decimals]) => {
     readout.textContent = `${value.toFixed(decimals ?? 0)}${suffix}`;
   });
 });
+
+for (let i = 0; i < 4; i++) {
+  const sourceEl = document.getElementById(`route-${i}-source`);
+  const destEl = document.getElementById(`route-${i}-dest`);
+  const amountEl = document.getElementById(`route-${i}-amount`);
+  const readoutEl = document.getElementById(`route-${i}-readout`);
+
+  synth.setRoute(i, {
+    source: sourceEl.value,
+    dest: destEl.value,
+    amount: Number(amountEl.value),
+  });
+
+  readoutEl.textContent = Number(amountEl.value).toFixed(2);
+
+  sourceEl.addEventListener("change", () => {
+    synth.setRoute(i, { source: sourceEl.value });
+  });
+
+  destEl.addEventListener("change", () => {
+    synth.setRoute(i, { dest: destEl.value });
+  });
+
+  amountEl.addEventListener("input", () => {
+    const value = Number(amountEl.value);
+    synth.setRoute(i, { amount: value });
+    readoutEl.textContent = value.toFixed(2);
+  });
+}
 
 const notes = [
   { name: "A2", freq: 110 },
@@ -204,6 +233,7 @@ function denormalizeLog(norm, min, max) {
 }
 
 function loop() {
+  synth.tick();
   ui.frame();
   requestAnimationFrame(loop);
 }
