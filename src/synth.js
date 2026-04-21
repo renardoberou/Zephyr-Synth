@@ -1,9 +1,6 @@
 import { MPE } from "./mpe.js";
 
 export class Synth {
-  /**
-   * @param {AudioContext} ctx
-   */
   constructor(ctx) {
     this.ctx = ctx;
     this.mpe = new MPE(this);
@@ -12,6 +9,8 @@ export class Synth {
     this.mix = null;
     this.filter = null;
     this.amp = null;
+    this.lfo = null;
+    this.lfoGain = null;
 
     this.osc1 = null;
     this.osc2 = null;
@@ -32,12 +31,21 @@ export class Synth {
       release: 0.45,
     };
 
+    this.lfoState = {
+      rate: 3,
+      pitchDepth: 0,
+      filterDepth: 600,
+      ampDepth: 0,
+    };
+
     this.filterEnvAmount = 1800;
     this.baseCutoff = 1200;
     this.baseResonance = 0.5;
 
     this.params = new Map();
     this.discreteParams = new Map();
+
+    this.lfoAnimationFrame = null;
   }
 
   async init() {
@@ -92,6 +100,7 @@ export class Synth {
 
     this.setAllFrequencies(this.baseFrequency);
     this.defineParams();
+    this.initLFO();
     this.initMIDI();
   }
 
@@ -115,8 +124,13 @@ export class Synth {
     this.params.set("filter.cutoff", (norm) => {
       const cutoff = this.denormalizeLog(norm, 60, 12000);
       this.baseCutoff = cutoff;
-      if (!this.isNoteHeld) {
-        this.filter.frequency.setValueAtTime(cutoff, this.ctx.currentTime);
+    });
+
+    this.params.set("lfo.rate", (norm) => {
+      const rate = this.denormalizeLog(norm, 0.1, 20);
+      this.lfoState.rate = rate;
+      if (this.lfo) {
+        this.lfo.frequency.setValueAtTime(rate, this.ctx.currentTime);
       }
     });
 
@@ -168,29 +182,30 @@ export class Synth {
     this.discreteParams.set("env.release", (value) => {
       this.env.release = value;
     });
+
+    this.discreteParams.set("lfo.pitchDepth", (value) => {
+      this.lfoState.pitchDepth = value;
+    });
+
+    this.discreteParams.set("lfo.filterDepth", (value) => {
+      this.lfoState.filterDepth = value;
+    });
+
+    this.discreteParams.set("lfo.ampDepth", (value) => {
+      this.lfoState.ampDepth = value;
+    });
   }
 
-  /**
-   * @param {string} key
-   * @param {number} norm
-   */
   setParam(key, norm) {
     const setter = this.params.get(key);
     if (setter) setter(norm);
   }
 
-  /**
-   * @param {string} key
-   * @param {string|number} value
-   */
   setDiscreteParam(key, value) {
     const setter = this.discreteParams.get(key);
     if (setter) setter(value);
   }
 
-  /**
-   * @param {number} freq
-   */
   noteOn(freq) {
     const t = this.ctx.currentTime;
     this.currentNoteFrequency = freq;
@@ -226,21 +241,57 @@ export class Synth {
     this.filter.frequency.cancelScheduledValues(t);
     this.filter.frequency.setValueAtTime(this.filter.frequency.value, t);
     this.filter.frequency.linearRampToValueAtTime(this.baseCutoff, t + this.env.release);
+
+    this.setAllFrequencies(this.baseFrequency);
   }
 
-  /**
-   * @param {number} freq
-   */
   setAllFrequencies(freq) {
     this.osc1.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
     this.osc2.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
     this.osc3.parameters.get("frequency").setValueAtTime(freq, this.ctx.currentTime);
   }
 
-  /**
-   * @param {string} wave
-   * @returns {number}
-   */
+  initLFO() {
+    this.lfo = this.ctx.createOscillator();
+    this.lfo.type = "sine";
+    this.lfo.frequency.value = this.lfoState.rate;
+    this.lfo.start();
+
+    this.startLFOTick();
+  }
+
+  startLFOTick() {
+    if (this.lfoAnimationFrame) {
+      cancelAnimationFrame(this.lfoAnimationFrame);
+    }
+
+    const tick = () => {
+      const t = this.ctx.currentTime;
+      const phase = Math.sin(t * Math.PI * 2 * this.lfoState.rate);
+
+      const pitchOffset = phase * this.lfoState.pitchDepth;
+      const filterOffset = phase * this.lfoState.filterDepth;
+      const ampMod = 1 - this.lfoState.ampDepth + ((phase + 1) * 0.5) * this.lfoState.ampDepth;
+
+      this.osc1.parameters.get("detune").setValueAtTime(pitchOffset, t);
+      this.osc2.parameters.get("detune").setValueAtTime(-7 + pitchOffset, t);
+      this.osc3.parameters.get("detune").setValueAtTime(7 + pitchOffset, t);
+
+      const targetCutoff = Math.max(40, this.baseCutoff + filterOffset);
+      if (!this.isNoteHeld) {
+        this.filter.frequency.setValueAtTime(targetCutoff, t);
+      }
+
+      if (!this.isNoteHeld) {
+        this.amp.gain.setValueAtTime(ampMod * 0.0001, t);
+      }
+
+      this.lfoAnimationFrame = requestAnimationFrame(tick);
+    };
+
+    tick();
+  }
+
   waveToIndex(wave) {
     switch (wave) {
       case "sine":
@@ -256,12 +307,6 @@ export class Synth {
     }
   }
 
-  /**
-   * @param {number} norm
-   * @param {number} min
-   * @param {number} max
-   * @returns {number}
-   */
   denormalizeLog(norm, min, max) {
     const minLog = Math.log(min);
     const maxLog = Math.log(max);
