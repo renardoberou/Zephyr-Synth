@@ -50,6 +50,8 @@ export class Synth {
       activeVoiceCount: 8,
       unisonCount: 1,
       unisonSpread: 0.35,
+      analogDrift: 0.18,
+      analogInstability: 0.12,
     };
     this.envSettings = { attack: 0.01, decay: 0.35, sustain: 0.65, release: 0.45 };
     this.routes = [
@@ -77,7 +79,9 @@ export class Synth {
     this.voiceBus = this.ctx.createGain();
     this.voiceBus.gain.value = 1.0;
     this.voices = [];
-    for (let i = 0; i < this.voiceCount; i++) this.voices.push(this.createVoice(i));
+    for (let i = 0; i < this.voiceCount; i++) {
+      this.voices.push(this.createVoice(i));
+    }
   }
 
   createVoice(index) {
@@ -130,7 +134,13 @@ export class Synth {
       lastEventAt: 0,
       stackIndex: 0,
       stackSize: 1,
+      basePan: 0,
       unisonDetuneCents: 0,
+      randomDetuneSeed: 0,
+      randomFilterSeed: 0,
+      randomPanSeed: 0,
+      driftPhase: 0,
+      driftRate: 0.1,
       panner,
       osc1,
       osc2,
@@ -144,10 +154,19 @@ export class Synth {
       env: { value: 0, stage: "idle", stageStart: 0, stageStartValue: 0 },
     };
 
+    this.refreshVoiceAnalogProfile(voice);
     this.applyWaveSettingsToVoice(voice, this.ctx.currentTime);
     this.applyCurrentDetunesToVoice(voice, this.ctx.currentTime);
     this.setVoiceFrequency(voice, this.baseFrequency, this.ctx.currentTime);
     return voice;
+  }
+
+  refreshVoiceAnalogProfile(voice) {
+    voice.randomDetuneSeed = (Math.random() * 2) - 1;
+    voice.randomFilterSeed = (Math.random() * 2) - 1;
+    voice.randomPanSeed = (Math.random() * 2) - 1;
+    voice.driftPhase = Math.random() * Math.PI * 2;
+    voice.driftRate = 0.045 + (Math.random() * 0.18);
   }
 
   buildFX() {
@@ -267,6 +286,9 @@ export class Synth {
       this.baseValues.unisonSpread = norm;
       this.updateAllVoiceUnisonPositions(this.ctx.currentTime);
     });
+    this.params.set("analog.drift", (norm) => {
+      this.baseValues.analogDrift = norm;
+    });
 
     this.discreteParams.set("osc1.wave", (value) => {
       this.baseWaves.osc1 = this.waveToIndex(value);
@@ -327,6 +349,9 @@ export class Synth {
     this.discreteParams.set("unison.count", (value) => {
       this.baseValues.unisonCount = this.clamp(Math.round(value), 1, 4);
       this.updateAllVoiceUnisonPositions(this.ctx.currentTime);
+    });
+    this.discreteParams.set("analog.instability", (value) => {
+      this.baseValues.analogInstability = value;
     });
   }
 
@@ -411,12 +436,24 @@ export class Synth {
       const sourceValue = sources[route.source] ?? 0;
       sums[route.dest] += sourceValue * (route.amount ?? 0) * this.getDestinationScale(route.dest);
     }
-    voice.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1 + voice.unisonDetuneCents + sums["osc1.detune"], now);
-    voice.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2 + voice.unisonDetuneCents + sums["osc2.detune"], now);
-    voice.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3 + voice.unisonDetuneCents + sums["osc3.detune"], now);
-    const finalCutoff = this.clamp(this.baseValues.filterCutoff + sums["filter.cutoff"], 40, 16000);
+
+    const slowDrift = Math.sin((now * Math.PI * 2 * voice.driftRate) + voice.driftPhase) * this.baseValues.analogDrift * 7;
+    const staticSlop = voice.randomDetuneSeed * this.baseValues.analogInstability * 10;
+    const totalAnalogDetune = slowDrift + staticSlop;
+
+    voice.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1 + voice.unisonDetuneCents + totalAnalogDetune + sums["osc1.detune"], now);
+    voice.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2 + voice.unisonDetuneCents + totalAnalogDetune + sums["osc2.detune"], now);
+    voice.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3 + voice.unisonDetuneCents + totalAnalogDetune + sums["osc3.detune"], now);
+
+    const filterDrift = Math.sin((now * Math.PI * 2 * voice.driftRate * 0.63) + (voice.driftPhase * 0.71)) * this.baseValues.analogDrift * 220;
+    const filterSlop = voice.randomFilterSeed * this.baseValues.analogInstability * 180;
+    const finalCutoff = this.clamp(this.baseValues.filterCutoff + filterDrift + filterSlop + sums["filter.cutoff"], 40, 16000);
     voice.filter.frequency.setValueAtTime(finalCutoff, now);
     voice.filter.Q.setValueAtTime(this.baseValues.filterResonance, now);
+
+    const panWobble = (voice.randomPanSeed * this.baseValues.analogInstability * 0.08) + (Math.sin((now * Math.PI * 2 * voice.driftRate * 0.41) + voice.driftPhase) * this.baseValues.analogDrift * 0.04);
+    voice.panner.pan.setValueAtTime(this.clamp(voice.basePan + panWobble, -1, 1), now);
+
     const finalAmpMod = this.clamp(1 + sums["amp.level"], 0, 1.5);
     voice.postAmpMod.gain.setValueAtTime(finalAmpMod, now);
   }
@@ -463,7 +500,9 @@ export class Synth {
       voice.stackIndex = i;
       voice.stackSize = stackSize;
       voice.unisonDetuneCents = this.getUnisonDetune(i, stackSize);
-      voice.panner.pan.setValueAtTime(this.getUnisonPan(i, stackSize), now);
+      voice.basePan = this.getUnisonPan(i, stackSize);
+      this.refreshVoiceAnalogProfile(voice);
+      voice.panner.pan.setValueAtTime(voice.basePan, now);
       this.setVoiceFrequency(voice, freq, now);
       this.applyWaveSettingsToVoice(voice, now);
       this.applyCurrentDetunesToVoice(voice, now);
@@ -480,7 +519,9 @@ export class Synth {
       return;
     }
     for (const voice of this.voices) {
-      if (voice.isActive && (voice.groupId === noteId || voice.noteId === noteId)) this.releaseVoice(voice, now);
+      if (voice.isActive && (voice.groupId === noteId || voice.noteId === noteId)) {
+        this.releaseVoice(voice, now);
+      }
     }
   }
 
@@ -522,7 +563,8 @@ export class Synth {
     for (const voice of this.voices) {
       if (!voice.groupId) continue;
       voice.unisonDetuneCents = this.getUnisonDetune(voice.stackIndex, voice.stackSize);
-      voice.panner.pan.setValueAtTime(this.getUnisonPan(voice.stackIndex, voice.stackSize), time);
+      voice.basePan = this.getUnisonPan(voice.stackIndex, voice.stackSize);
+      voice.panner.pan.setValueAtTime(voice.basePan, time);
     }
   }
 
@@ -598,7 +640,7 @@ export class Synth {
     return impulse;
   }
 
-  lerp(a, b, t) { return a + (b - a) * t; }
+  lerp(a, b, t) { return a + ((b - a) * t); }
   clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
   initMIDI() {
