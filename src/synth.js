@@ -38,6 +38,11 @@ export class Synth {
     this.baseValues = {
       filterCutoff: 1200,
       filterResonance: 0.5,
+      filter2Cutoff: 2200,
+      filter2Resonance: 7.5,
+      hpfCutoff: 30,
+      filterParallelBlend: 0.5,
+      filterRoutingMode: "serial",
       masterGain: 0.6,
       chorusMix: 0.25,
       chorusRate: 0.8,
@@ -100,10 +105,22 @@ export class Synth {
     driveShaper.oversample = "2x";
     const driveCompGain = this.ctx.createGain();
 
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = this.baseValues.filterCutoff;
-    filter.Q.value = this.baseValues.filterResonance;
+    const filterSplit = this.ctx.createGain();
+    const serialLpf1A = this.ctx.createBiquadFilter();
+    const serialLpf1B = this.ctx.createBiquadFilter();
+    const serialLpf2 = this.ctx.createBiquadFilter();
+    const serialModeGain = this.ctx.createGain();
+
+    const parallelLpf1A = this.ctx.createBiquadFilter();
+    const parallelLpf1B = this.ctx.createBiquadFilter();
+    const parallelLpf2 = this.ctx.createBiquadFilter();
+    const parallelLpf1Gain = this.ctx.createGain();
+    const parallelLpf2Gain = this.ctx.createGain();
+    const parallelSum = this.ctx.createGain();
+    const parallelModeGain = this.ctx.createGain();
+
+    const hpf = this.ctx.createBiquadFilter();
+    const postFilterSum = this.ctx.createGain();
 
     const amp = this.ctx.createGain();
     amp.gain.value = 0;
@@ -114,11 +131,38 @@ export class Synth {
     const panner = this.ctx.createStereoPanner();
     panner.pan.value = 0;
 
+    serialLpf1A.type = "lowpass";
+    serialLpf1B.type = "lowpass";
+    serialLpf2.type = "lowpass";
+    parallelLpf1A.type = "lowpass";
+    parallelLpf1B.type = "lowpass";
+    parallelLpf2.type = "lowpass";
+    hpf.type = "highpass";
+
     voiceMix.connect(driveGain);
     driveGain.connect(driveShaper);
     driveShaper.connect(driveCompGain);
-    driveCompGain.connect(filter);
-    filter.connect(amp);
+    driveCompGain.connect(filterSplit);
+
+    filterSplit.connect(serialLpf1A);
+    serialLpf1A.connect(serialLpf1B);
+    serialLpf1B.connect(serialLpf2);
+    serialLpf2.connect(serialModeGain);
+    serialModeGain.connect(postFilterSum);
+
+    filterSplit.connect(parallelLpf1A);
+    parallelLpf1A.connect(parallelLpf1B);
+    parallelLpf1B.connect(parallelLpf1Gain);
+    parallelLpf1Gain.connect(parallelSum);
+
+    filterSplit.connect(parallelLpf2);
+    parallelLpf2.connect(parallelLpf2Gain);
+    parallelLpf2Gain.connect(parallelSum);
+    parallelSum.connect(parallelModeGain);
+    parallelModeGain.connect(postFilterSum);
+
+    postFilterSum.connect(hpf);
+    hpf.connect(amp);
     amp.connect(postAmpMod);
     postAmpMod.connect(panner);
     panner.connect(this.voiceBus);
@@ -165,13 +209,26 @@ export class Synth {
       driveGain,
       driveShaper,
       driveCompGain,
+      filterSplit,
+      serialLpf1A,
+      serialLpf1B,
+      serialLpf2,
+      serialModeGain,
+      parallelLpf1A,
+      parallelLpf1B,
+      parallelLpf2,
+      parallelLpf1Gain,
+      parallelLpf2Gain,
+      parallelSum,
+      parallelModeGain,
+      hpf,
+      postFilterSum,
       osc1,
       osc2,
       osc3,
       osc1Gain,
       osc2Gain,
       osc3Gain,
-      filter,
       amp,
       postAmpMod,
       env: { value: 0, stage: "idle", stageStart: 0, stageStartValue: 0 },
@@ -179,8 +236,10 @@ export class Synth {
 
     this.refreshVoiceAnalogProfile(voice);
     this.updateSingleVoiceDriveSettings(voice, this.ctx.currentTime);
+    this.updateSingleVoiceRoutingSettings(voice, this.ctx.currentTime);
     this.applyWaveSettingsToVoice(voice, this.ctx.currentTime);
     this.applyCurrentDetunesToVoice(voice, this.ctx.currentTime);
+    this.applyVoiceFilterSettings(voice, this.ctx.currentTime, this.baseValues.filterCutoff, this.baseValues.filter2Cutoff, this.baseValues.hpfCutoff);
     this.setVoiceFrequency(voice, this.baseFrequency, this.ctx.currentTime);
     return voice;
   }
@@ -306,6 +365,16 @@ export class Synth {
     this.params.set("filter.cutoff", (norm) => {
       this.baseValues.filterCutoff = this.denormalizeLog(norm, 60, 12000);
     });
+    this.params.set("filter2.cutoff", (norm) => {
+      this.baseValues.filter2Cutoff = this.denormalizeLog(norm, 60, 12000);
+    });
+    this.params.set("hpf.cutoff", (norm) => {
+      this.baseValues.hpfCutoff = this.denormalizeLog(norm, 20, 4000);
+    });
+    this.params.set("filter.parallelBlend", (norm) => {
+      this.baseValues.filterParallelBlend = norm;
+      this.updateAllVoiceRoutingSettings(this.ctx.currentTime);
+    });
     this.params.set("lfo.rate", (norm) => {
       this.baseValues.lfoRate = this.denormalizeLog(norm, 0.1, 20);
     });
@@ -351,12 +420,18 @@ export class Synth {
       this.baseWaves.osc3 = this.waveToIndex(value);
       this.voices.forEach((voice) => voice.osc3.parameters.get("wave").setValueAtTime(this.baseWaves.osc3, this.ctx.currentTime));
     });
+    this.discreteParams.set("filter.routing", (value) => {
+      this.baseValues.filterRoutingMode = value === "parallel" ? "parallel" : "serial";
+      this.updateAllVoiceRoutingSettings(this.ctx.currentTime);
+    });
     this.discreteParams.set("osc1.detune", (value) => { this.baseDetune.osc1 = value; });
     this.discreteParams.set("osc2.detune", (value) => { this.baseDetune.osc2 = value; });
     this.discreteParams.set("osc3.detune", (value) => { this.baseDetune.osc3 = value; });
     this.discreteParams.set("filter.resonance", (value) => {
       this.baseValues.filterResonance = value;
-      this.voices.forEach((voice) => voice.filter.Q.setValueAtTime(value, this.ctx.currentTime));
+    });
+    this.discreteParams.set("filter2.resonance", (value) => {
+      this.baseValues.filter2Resonance = value;
     });
     this.discreteParams.set("env.attack", (value) => { this.envSettings.attack = value; });
     this.discreteParams.set("env.decay", (value) => { this.envSettings.decay = value; });
@@ -483,7 +558,16 @@ export class Synth {
 
   applyVoiceModMatrix(voice, now, lfo) {
     const sources = { lfo, env: voice.env.value, macro1: this.baseValues.macro1, macro2: this.baseValues.macro2 };
-    const sums = { "osc1.detune": 0, "osc2.detune": 0, "osc3.detune": 0, "filter.cutoff": 0, "amp.level": 0 };
+    const sums = {
+      "osc1.detune": 0,
+      "osc2.detune": 0,
+      "osc3.detune": 0,
+      "filter.cutoff": 0,
+      "filter2.cutoff": 0,
+      "hpf.cutoff": 0,
+      "amp.level": 0,
+    };
+
     for (const route of this.routes) {
       if (!(route.dest in sums)) continue;
       const sourceValue = sources[route.source] ?? 0;
@@ -500,15 +584,42 @@ export class Synth {
 
     const filterDrift = Math.sin((now * Math.PI * 2 * voice.driftRate * 0.63) + (voice.driftPhase * 0.71)) * this.baseValues.analogDrift * 220;
     const filterSlop = voice.randomFilterSeed * this.baseValues.analogInstability * 180;
-    const finalCutoff = this.clamp(this.baseValues.filterCutoff + filterDrift + filterSlop + sums["filter.cutoff"], 40, 16000);
-    voice.filter.frequency.setValueAtTime(finalCutoff, now);
-    voice.filter.Q.setValueAtTime(this.baseValues.filterResonance, now);
+
+    const finalCutoff1 = this.clamp(this.baseValues.filterCutoff + filterDrift + filterSlop + sums["filter.cutoff"], 40, 16000);
+    const finalCutoff2 = this.clamp(this.baseValues.filter2Cutoff + (filterDrift * 0.55) + (filterSlop * 0.4) + (sums["filter.cutoff"] * 0.35) + sums["filter2.cutoff"], 40, 16000);
+    const finalHpf = this.clamp(this.baseValues.hpfCutoff + (sums["hpf.cutoff"]) + Math.max(0, this.baseValues.analogInstability * 18 * voice.randomFilterSeed), 20, 4000);
+
+    this.applyVoiceFilterSettings(voice, now, finalCutoff1, finalCutoff2, finalHpf);
 
     const panWobble = (voice.randomPanSeed * this.baseValues.analogInstability * 0.08) + (Math.sin((now * Math.PI * 2 * voice.driftRate * 0.41) + voice.driftPhase) * this.baseValues.analogDrift * 0.04);
     voice.panner.pan.setValueAtTime(this.clamp(voice.basePan + panWobble, -1, 1), now);
 
     const finalAmpMod = this.clamp(1 + sums["amp.level"], 0, 1.5);
     voice.postAmpMod.gain.setValueAtTime(finalAmpMod, now);
+  }
+
+  applyVoiceFilterSettings(voice, time, cutoff1, cutoff2, hpfCutoff) {
+    const ladderQ1 = this.clamp(this.baseValues.filterResonance * 0.2, 0.01, 18);
+    const ladderQ2 = this.clamp(this.baseValues.filterResonance, 0.01, 24);
+    const ms20Q = this.clamp(this.baseValues.filter2Resonance, 0.1, 24);
+
+    voice.serialLpf1A.frequency.setValueAtTime(cutoff1, time);
+    voice.serialLpf1B.frequency.setValueAtTime(cutoff1, time);
+    voice.parallelLpf1A.frequency.setValueAtTime(cutoff1, time);
+    voice.parallelLpf1B.frequency.setValueAtTime(cutoff1, time);
+
+    voice.serialLpf1A.Q.setValueAtTime(ladderQ1, time);
+    voice.serialLpf1B.Q.setValueAtTime(ladderQ2, time);
+    voice.parallelLpf1A.Q.setValueAtTime(ladderQ1, time);
+    voice.parallelLpf1B.Q.setValueAtTime(ladderQ2, time);
+
+    voice.serialLpf2.frequency.setValueAtTime(cutoff2, time);
+    voice.parallelLpf2.frequency.setValueAtTime(cutoff2, time);
+    voice.serialLpf2.Q.setValueAtTime(ms20Q, time);
+    voice.parallelLpf2.Q.setValueAtTime(ms20Q, time);
+
+    voice.hpf.frequency.setValueAtTime(hpfCutoff, time);
+    voice.hpf.Q.setValueAtTime(0.7, time);
   }
 
   applyGlobalFxModMatrix(now, lfo, envValue) {
@@ -528,13 +639,21 @@ export class Synth {
     switch (dest) {
       case "osc1.detune":
       case "osc2.detune":
-      case "osc3.detune": return 50;
-      case "filter.cutoff": return 3000;
-      case "amp.level": return 0.8;
+      case "osc3.detune":
+        return 50;
+      case "filter.cutoff":
+      case "filter2.cutoff":
+        return 3000;
+      case "hpf.cutoff":
+        return 900;
+      case "amp.level":
+        return 0.8;
       case "chorus.mix":
       case "delay.mix":
-      case "reverb.mix": return 0.7;
-      default: return 1;
+      case "reverb.mix":
+        return 0.7;
+      default:
+        return 1;
     }
   }
 
@@ -557,6 +676,7 @@ export class Synth {
       this.refreshVoiceAnalogProfile(voice);
       voice.panner.pan.setValueAtTime(voice.basePan, now);
       this.updateSingleVoiceDriveSettings(voice, now);
+      this.updateSingleVoiceRoutingSettings(voice, now);
       this.setVoiceFrequency(voice, freq, now);
       this.applyWaveSettingsToVoice(voice, now);
       this.applyCurrentDetunesToVoice(voice, now);
@@ -620,6 +740,18 @@ export class Synth {
       voice.basePan = this.getUnisonPan(voice.stackIndex, voice.stackSize);
       voice.panner.pan.setValueAtTime(voice.basePan, time);
     }
+  }
+
+  updateSingleVoiceRoutingSettings(voice, time) {
+    const isParallel = this.baseValues.filterRoutingMode === "parallel";
+    voice.serialModeGain.gain.setValueAtTime(isParallel ? 0 : 1, time);
+    voice.parallelModeGain.gain.setValueAtTime(isParallel ? 1 : 0, time);
+    voice.parallelLpf1Gain.gain.setValueAtTime(1 - this.baseValues.filterParallelBlend, time);
+    voice.parallelLpf2Gain.gain.setValueAtTime(this.baseValues.filterParallelBlend, time);
+  }
+
+  updateAllVoiceRoutingSettings(time) {
+    this.voices.forEach((voice) => this.updateSingleVoiceRoutingSettings(voice, time));
   }
 
   updateSingleVoiceDriveSettings(voice, time) {
