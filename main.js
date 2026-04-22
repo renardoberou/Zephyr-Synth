@@ -33,11 +33,11 @@ function normalizeLog(value, min, max) {
 function denormalizeLog(norm, min, max) {
   const minLog = Math.log(min);
   const maxLog = Math.log(max);
-  return Math.exp(minLog + norm * (maxLog - minLog));
+  return Math.exp(minLog + (norm * (maxLog - minLog)));
 }
 
 function lerp(a, b, t) {
-  return a + (b - a) * t;
+  return a + ((b - a) * t);
 }
 
 const defaults = {
@@ -52,6 +52,7 @@ const defaults = {
   "chorus.mix": 0.25,
   "delay.mix": 0.20,
   "reverb.mix": 0.25,
+  "unison.spread": 0.35,
 };
 
 const knobReadouts = {
@@ -72,6 +73,10 @@ const knobReadouts = {
   "chorus.mix": (v) => { const el = byId("chorus-mix-readout"); if (el) el.textContent = v.toFixed(2); },
   "delay.mix": (v) => { const el = byId("delay-mix-readout"); if (el) el.textContent = v.toFixed(2); },
   "reverb.mix": (v) => { const el = byId("reverb-mix-readout"); if (el) el.textContent = v.toFixed(2); },
+  "unison.spread": (v) => {
+    const el = byId("unison-spread-readout");
+    if (el) el.textContent = `${Math.round(v * 100)}%`;
+  },
 };
 
 const selectBindings = [
@@ -81,6 +86,8 @@ const selectBindings = [
 ];
 
 const sliderBindings = [
+  { id: "voice-count", param: "voice.count", readoutId: "voice-count-readout", suffix: "", decimals: 0 },
+  { id: "unison-count", param: "unison.count", readoutId: "unison-count-readout", suffix: "", decimals: 0 },
   { id: "osc1-detune", param: "osc1.detune", readoutId: "osc1-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc2-detune", param: "osc2.detune", readoutId: "osc2-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc3-detune", param: "osc3.detune", readoutId: "osc3-detune-readout", suffix: " ct", decimals: 0 },
@@ -97,6 +104,50 @@ const sliderBindings = [
   { id: "reverb-decay", param: "reverb.decay", readoutId: "reverb-decay-readout", suffix: " s", decimals: 1 },
 ];
 
+function injectVoicePanel() {
+  const grid = document.querySelector(".synth-grid");
+  if (!grid || byId("voice-count")) return;
+
+  const section = document.createElement("section");
+  section.className = "panel";
+  section.innerHTML = `
+    <h2>VOICE / UNISON</h2>
+    <div class="osc-grid">
+      <div class="knob" data-param="unison.spread">
+        <canvas class="bg" width="140" height="140"></canvas>
+        <canvas class="fg" width="140" height="140"></canvas>
+        <div class="knob-value" id="unison-spread-readout">35%</div>
+      </div>
+      <div class="param-list">
+        <div class="param">
+          <label for="voice-count">Polyphony</label>
+          <input id="voice-count" type="range" min="1" max="8" step="1" value="8" />
+        </div>
+        <div class="status" id="voice-count-readout">8</div>
+
+        <div class="param">
+          <label for="unison-count">Unison</label>
+          <input id="unison-count" type="range" min="1" max="4" step="1" value="1" />
+        </div>
+        <div class="status" id="unison-count-readout">1</div>
+
+        <div class="status">Spread widens stereo and detunes stacked voices.</div>
+      </div>
+    </div>
+  `;
+
+  const presetPanel = Array.from(grid.querySelectorAll(".panel")).find((panel) => {
+    const heading = panel.querySelector("h2");
+    return heading && heading.textContent.includes("PRESETS");
+  });
+
+  if (presetPanel) {
+    grid.insertBefore(section, presetPanel);
+  } else {
+    grid.appendChild(section);
+  }
+}
+
 function createInitialState() {
   return {
     version: 1,
@@ -107,6 +158,8 @@ function createInitialState() {
       "osc3-wave": "sawtooth",
     },
     sliders: {
+      "voice-count": 8,
+      "unison-count": 1,
       "osc1-detune": 0,
       "osc2-detune": -7,
       "osc3-detune": 7,
@@ -139,6 +192,9 @@ function createBuiltinPresets() {
   warm.knobs["chorus.mix"] = 0.35;
   warm.knobs["reverb.mix"] = 0.42;
   warm.knobs["delay.mix"] = 0.12;
+  warm.knobs["unison.spread"] = 0.28;
+  warm.sliders["voice-count"] = 6;
+  warm.sliders["unison-count"] = 2;
   warm.sliders["env-attack"] = 0.22;
   warm.sliders["env-decay"] = 0.85;
   warm.sliders["env-sustain"] = 0.78;
@@ -152,6 +208,9 @@ function createBuiltinPresets() {
   bright.knobs["lfo.rate"] = normalizeLog(5.8, 0.1, 20);
   bright.knobs["delay.mix"] = 0.28;
   bright.knobs["reverb.mix"] = 0.18;
+  bright.knobs["unison.spread"] = 0.45;
+  bright.sliders["voice-count"] = 8;
+  bright.sliders["unison-count"] = 2;
   bright.sliders["delay-feedback"] = 0.48;
   bright.sliders["chorus-rate"] = 1.7;
   bright.routes[0] = { source: "lfo", dest: "osc1.detune", amount: 0.28 };
@@ -169,8 +228,11 @@ function createBuiltinPresets() {
   drone.knobs["reverb.mix"] = 0.52;
   drone.knobs["macro1.value"] = 0.25;
   drone.knobs["macro2.value"] = 0.35;
+  drone.knobs["unison.spread"] = 0.55;
   drone.selects["osc2-wave"] = "triangle";
   drone.selects["osc3-wave"] = "square";
+  drone.sliders["voice-count"] = 8;
+  drone.sliders["unison-count"] = 3;
   drone.sliders["env-attack"] = 0.6;
   drone.sliders["env-decay"] = 1.6;
   drone.sliders["env-sustain"] = 0.9;
@@ -409,7 +471,6 @@ function morphStates(a, b, t) {
 function updateSnapshotStatus() {
   const el = byId("snapshot-status");
   if (!el) return;
-
   el.textContent = `A: ${snapshotA ? "captured" : "empty"} · B: ${snapshotB ? "captured" : "empty"}`;
 }
 
@@ -449,7 +510,7 @@ function bindKnobs() {
       const dy = lastY - e.clientY;
       lastY = e.clientY;
 
-      let value = (knobState[paramKey] ?? 0.5) + dy * 0.005;
+      let value = (knobState[paramKey] ?? 0.5) + (dy * 0.005);
       value = Math.max(0, Math.min(1, value));
 
       applyKnob(paramKey, value);
@@ -705,9 +766,7 @@ function bindPresetUI() {
     morphReset.addEventListener("click", () => {
       if (morphSlider) morphSlider.value = "0";
       if (morphReadout) morphReadout.textContent = "0.00";
-      if (snapshotA) {
-        applyState(snapshotA);
-      }
+      if (snapshotA) applyState(snapshotA);
       setStatus("Morph reset");
     });
   }
@@ -722,6 +781,7 @@ function bindPresetUI() {
 
 async function boot() {
   try {
+    injectVoicePanel();
     await synth.init();
     setStatus("Ready");
   } catch (err) {
