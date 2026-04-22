@@ -116,7 +116,20 @@
       height: 140px;
       touch-action: none;
       user-select: none;
-      margin: 0 auto;
+      margin: 22px auto 0;
+    }
+
+    .knob::before {
+      content: attr(data-label);
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      pointer-events: none;
     }
 
     .knob canvas {
@@ -302,7 +315,7 @@
       <section class="panel">
         <h2>OSC 1</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="osc1.gain">
+          <div class="knob" data-param="osc1.gain" data-label="OSC 1 LEVEL">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="osc1-gain-readout">0.70</div>
@@ -329,7 +342,7 @@
       <section class="panel">
         <h2>OSC 2</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="osc2.gain">
+          <div class="knob" data-param="osc2.gain" data-label="OSC 2 LEVEL">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="osc2-gain-readout">0.50</div>
@@ -356,7 +369,7 @@
       <section class="panel">
         <h2>OSC 3</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="osc3.gain">
+          <div class="knob" data-param="osc3.gain" data-label="OSC 3 LEVEL">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="osc3-gain-readout">0.50</div>
@@ -383,24 +396,24 @@
       <section class="panel">
         <h2>FILTER BLOCK</h2>
         <div class="knob-pair" style="margin-bottom: 12px;">
-          <div class="knob" data-param="filter.cutoff">
+          <div class="knob" data-param="filter.cutoff" data-label="LPF1 CUTOFF">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="filter-cutoff-readout">1200 Hz</div>
           </div>
-          <div class="knob" data-param="filter2.cutoff">
+          <div class="knob" data-param="filter2.cutoff" data-label="LPF2 CUTOFF">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="filter2-cutoff-readout">2200 Hz</div>
           </div>
         </div>
         <div class="knob-pair" style="margin-bottom: 12px;">
-          <div class="knob" data-param="hpf.cutoff">
+          <div class="knob" data-param="hpf.cutoff" data-label="HPF CUTOFF">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="hpf-cutoff-readout">30 Hz</div>
           </div>
-          <div class="knob" data-param="filter.parallelBlend">
+          <div class="knob" data-param="filter.parallelBlend" data-label="PARALLEL BLEND">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="filter-parallel-blend-readout">50%</div>
@@ -461,7 +474,7 @@
       <section class="panel">
         <h2>ENVELOPE / MASTER</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="master.gain">
+          <div class="knob" data-param="master.gain" data-label="MASTER LEVEL">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="master-gain-readout">0.60</div>
@@ -497,7 +510,7 @@
       <section class="panel">
         <h2>LFO</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="lfo.rate">
+          <div class="knob" data-param="lfo.rate" data-label="LFO RATE">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="lfo-rate-readout">3.0 Hz</div>
@@ -511,12 +524,12 @@
       <section class="panel">
         <h2>MACROS</h2>
         <div class="knob-pair">
-          <div class="knob" data-param="macro1.value">
+          <div class="knob" data-param="macro1.value" data-label="MACRO 1">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="macro1-readout">0.00</div>
           </div>
-          <div class="knob" data-param="macro2.value">
+          <div class="knob" data-param="macro2.value" data-label="MACRO 2">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="macro2-readout">0.00</div>
@@ -527,7 +540,7 @@
       <section class="panel">
         <h2>CHORUS</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="chorus.mix">
+          <div class="knob" data-param="chorus.mix" data-label="CHORUS MIX">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="chorus-mix-readout">0.25</div>
@@ -557,7 +570,7 @@
       <section class="panel">
         <h2>TAPE DELAY</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="delay.mix">
+          <div class="knob" data-param="delay.mix" data-label="DELAY MIX">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="delay-mix-readout">0.20</div>
@@ -581,7 +594,7 @@
       <section class="panel">
         <h2>REVERB</h2>
         <div class="osc-grid">
-          <div class="knob" data-param="reverb.mix">
+          <div class="knob" data-param="reverb.mix" data-label="REVERB MIX">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="reverb-mix-readout">0.25</div>
@@ -597,12 +610,67 @@
       </section>
 
       <section class="panel">
+        <h2>VOICE / ANALOG</h2>
+        <div class="knob-pair" style="margin-bottom: 12px;">
+          <div class="knob" data-param="unison.spread" data-label="UNISON SPREAD">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="unison-spread-readout">35%</div>
+          </div>
+          <div class="knob" data-param="analog.drift" data-label="ANALOG DRIFT">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="analog-drift-readout">18%</div>
+          </div>
+        </div>
+        <div class="knob-pair" style="margin-bottom: 12px;">
+          <div class="knob" data-param="drive.voice" data-label="VOICE DRIVE">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="voice-drive-readout">22%</div>
+          </div>
+          <div class="knob" data-param="drive.master" data-label="MASTER DRIVE">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="master-drive-readout">16%</div>
+          </div>
+        </div>
+        <div class="param-list">
+          <div class="param">
+            <label for="voice-count">Polyphony</label>
+            <input id="voice-count" type="range" min="1" max="8" step="1" value="8" />
+          </div>
+          <div class="status" id="voice-count-readout">8</div>
+          <div class="param">
+            <label for="unison-count">Unison</label>
+            <input id="unison-count" type="range" min="1" max="4" step="1" value="1" />
+          </div>
+          <div class="status" id="unison-count-readout">1</div>
+          <div class="param">
+            <label for="analog-instability">Instability</label>
+            <input id="analog-instability" type="range" min="0" max="0.5" step="0.01" value="0.12" />
+          </div>
+          <div class="status" id="analog-instability-readout">12%</div>
+          <div class="param">
+            <label for="drive-compensation">Drive Compensation</label>
+            <input id="drive-compensation" type="range" min="0" max="1" step="0.01" value="0.72" />
+          </div>
+          <div class="status" id="drive-compensation-readout">72%</div>
+          <div class="status">Spread thickens the stack. Drift and instability add motion. Voice and master drive add analog saturation with level compensation.</div>
+        </div>
+      </section>
+
+      <section class="panel">
         <h2>MOD MATRIX</h2>
         <div class="matrix-panel">
           <div class="route-row">
             <select id="route-0-source">
               <option value="env">ENV</option>
               <option value="lfo">LFO</option>
+              <option value="velocity">VELOCITY</option>
+              <option value="pressure">PRESSURE</option>
+              <option value="timbre">TIMBRE</option>
+              <option value="bend">BEND</option>
               <option value="macro1">MACRO 1</option>
               <option value="macro2">MACRO 2</option>
             </select>
@@ -628,6 +696,10 @@
             <select id="route-1-source">
               <option value="env">ENV</option>
               <option value="lfo" selected>LFO</option>
+              <option value="velocity">VELOCITY</option>
+              <option value="pressure">PRESSURE</option>
+              <option value="timbre">TIMBRE</option>
+              <option value="bend">BEND</option>
               <option value="macro1">MACRO 1</option>
               <option value="macro2">MACRO 2</option>
             </select>
@@ -653,6 +725,10 @@
             <select id="route-2-source">
               <option value="env">ENV</option>
               <option value="lfo">LFO</option>
+              <option value="velocity">VELOCITY</option>
+              <option value="pressure">PRESSURE</option>
+              <option value="timbre">TIMBRE</option>
+              <option value="bend">BEND</option>
               <option value="macro1" selected>MACRO 1</option>
               <option value="macro2">MACRO 2</option>
             </select>
@@ -678,6 +754,10 @@
             <select id="route-3-source">
               <option value="env">ENV</option>
               <option value="lfo">LFO</option>
+              <option value="velocity">VELOCITY</option>
+              <option value="pressure">PRESSURE</option>
+              <option value="timbre">TIMBRE</option>
+              <option value="bend">BEND</option>
               <option value="macro1">MACRO 1</option>
               <option value="macro2" selected>MACRO 2</option>
             </select>
@@ -749,7 +829,7 @@
     </section>
 
     <div class="footer-note">
-      Polyphony, unison, analog drive, multi-stage filters, key tracking, and filter envelope depth are now active in the live build.
+      Knob labels, static voice controls, per-stage filters, and velocity/MPE matrix sources are now active in the live build.
     </div>
   </div>
 
