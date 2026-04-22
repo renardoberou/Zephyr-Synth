@@ -381,20 +381,50 @@
       </section>
 
       <section class="panel">
-        <h2>FILTER</h2>
-        <div class="osc-grid">
+        <h2>FILTER BLOCK</h2>
+        <div class="knob-pair" style="margin-bottom: 12px;">
           <div class="knob" data-param="filter.cutoff">
             <canvas class="bg" width="140" height="140"></canvas>
             <canvas class="fg" width="140" height="140"></canvas>
             <div class="knob-value" id="filter-cutoff-readout">1200 Hz</div>
           </div>
-          <div class="param-list">
-            <div class="param">
-              <label for="filter-resonance">Resonance</label>
-              <input id="filter-resonance" type="range" min="0.1" max="20" step="0.1" value="0.5" />
-            </div>
-            <div class="status" id="filter-resonance-readout">0.5</div>
+          <div class="knob" data-param="filter2.cutoff">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="filter2-cutoff-readout">2200 Hz</div>
           </div>
+        </div>
+        <div class="knob-pair" style="margin-bottom: 12px;">
+          <div class="knob" data-param="hpf.cutoff">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="hpf-cutoff-readout">30 Hz</div>
+          </div>
+          <div class="knob" data-param="filter.parallelBlend">
+            <canvas class="bg" width="140" height="140"></canvas>
+            <canvas class="fg" width="140" height="140"></canvas>
+            <div class="knob-value" id="filter-parallel-blend-readout">50%</div>
+          </div>
+        </div>
+        <div class="param-list">
+          <div class="param">
+            <label for="filter-routing">Routing</label>
+            <select id="filter-routing">
+              <option value="serial" selected>Serial LPF1 → LPF2 → HPF</option>
+              <option value="parallel">Parallel LPF1 / LPF2 → HPF</option>
+            </select>
+          </div>
+          <div class="param">
+            <label for="filter-resonance">LPF1 Resonance</label>
+            <input id="filter-resonance" type="range" min="0.1" max="20" step="0.1" value="0.5" />
+          </div>
+          <div class="status" id="filter-resonance-readout">0.5</div>
+          <div class="param">
+            <label for="filter2-resonance">LPF2 Resonance</label>
+            <input id="filter2-resonance" type="range" min="0.1" max="20" step="0.1" value="7.5" />
+          </div>
+          <div class="status" id="filter2-resonance-readout">7.5</div>
+          <div class="status">LPF1 behaves like a smoother ladder stage. LPF2 is sharper and more aggressive. In parallel mode, the blend knob crossfades their contribution before the HPF.</div>
         </div>
       </section>
 
@@ -547,7 +577,9 @@
               <option value="macro2">MACRO 2</option>
             </select>
             <select id="route-0-dest">
-              <option value="filter.cutoff">Filter Cutoff</option>
+              <option value="filter.cutoff">LPF1 Cutoff</option>
+              <option value="filter2.cutoff">LPF2 Cutoff</option>
+              <option value="hpf.cutoff">HPF Cutoff</option>
               <option value="osc1.detune">OSC1 Detune</option>
               <option value="osc2.detune">OSC2 Detune</option>
               <option value="osc3.detune">OSC3 Detune</option>
@@ -570,7 +602,9 @@
               <option value="macro2">MACRO 2</option>
             </select>
             <select id="route-1-dest">
-              <option value="filter.cutoff" selected>Filter Cutoff</option>
+              <option value="filter.cutoff" selected>LPF1 Cutoff</option>
+              <option value="filter2.cutoff">LPF2 Cutoff</option>
+              <option value="hpf.cutoff">HPF Cutoff</option>
               <option value="osc1.detune">OSC1 Detune</option>
               <option value="osc2.detune">OSC2 Detune</option>
               <option value="osc3.detune">OSC3 Detune</option>
@@ -593,7 +627,9 @@
               <option value="macro2">MACRO 2</option>
             </select>
             <select id="route-2-dest">
-              <option value="filter.cutoff">Filter Cutoff</option>
+              <option value="filter.cutoff">LPF1 Cutoff</option>
+              <option value="filter2.cutoff">LPF2 Cutoff</option>
+              <option value="hpf.cutoff">HPF Cutoff</option>
               <option value="osc1.detune">OSC1 Detune</option>
               <option value="osc2.detune">OSC2 Detune</option>
               <option value="osc3.detune">OSC3 Detune</option>
@@ -616,7 +652,9 @@
               <option value="macro2" selected>MACRO 2</option>
             </select>
             <select id="route-3-dest">
-              <option value="filter.cutoff">Filter Cutoff</option>
+              <option value="filter.cutoff">LPF1 Cutoff</option>
+              <option value="filter2.cutoff">LPF2 Cutoff</option>
+              <option value="hpf.cutoff">HPF Cutoff</option>
               <option value="osc1.detune">OSC1 Detune</option>
               <option value="osc2.detune">OSC2 Detune</option>
               <option value="osc3.detune">OSC3 Detune</option>
@@ -681,10 +719,10 @@
     </section>
 
     <div class="footer-note">
-      Polyphony, drift, unison, presets, and analog gain staging are now active in the live build.
+      Polyphony, unison, analog drive, and a full multi-stage filter block are now active in the live build.
     </div>
   </div>
 
-  <script type="module" src="./main.js?v=10"></script>
+  <script type="module" src="./main.js?v=11"></script>
 </body>
 </html>
