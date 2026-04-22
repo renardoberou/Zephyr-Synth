@@ -424,7 +424,37 @@
             <input id="filter2-resonance" type="range" min="0.1" max="20" step="0.1" value="7.5" />
           </div>
           <div class="status" id="filter2-resonance-readout">7.5</div>
-          <div class="status">LPF1 behaves like a smoother ladder stage. LPF2 is sharper and more aggressive. In parallel mode, the blend knob crossfades their contribution before the HPF.</div>
+          <div class="param">
+            <label for="filter-keytrack">LPF1 Keytrack</label>
+            <input id="filter-keytrack" type="range" min="0" max="1" step="0.01" value="0.35" />
+          </div>
+          <div class="status" id="filter-keytrack-readout">35%</div>
+          <div class="param">
+            <label for="filter2-keytrack">LPF2 Keytrack</label>
+            <input id="filter2-keytrack" type="range" min="0" max="1" step="0.01" value="0.20" />
+          </div>
+          <div class="status" id="filter2-keytrack-readout">20%</div>
+          <div class="param">
+            <label for="hpf-keytrack">HPF Keytrack</label>
+            <input id="hpf-keytrack" type="range" min="0" max="1" step="0.01" value="0.0" />
+          </div>
+          <div class="status" id="hpf-keytrack-readout">0%</div>
+          <div class="param">
+            <label for="filter-env-depth">LPF1 Env Depth</label>
+            <input id="filter-env-depth" type="range" min="0" max="1" step="0.01" value="0.55" />
+          </div>
+          <div class="status" id="filter-env-depth-readout">55%</div>
+          <div class="param">
+            <label for="filter2-env-depth">LPF2 Env Depth</label>
+            <input id="filter2-env-depth" type="range" min="0" max="1" step="0.01" value="0.30" />
+          </div>
+          <div class="status" id="filter2-env-depth-readout">30%</div>
+          <div class="param">
+            <label for="hpf-env-depth">HPF Env Depth</label>
+            <input id="hpf-env-depth" type="range" min="0" max="1" step="0.01" value="0.08" />
+          </div>
+          <div class="status" id="hpf-env-depth-readout">8%</div>
+          <div class="status">LPF1 behaves like a smoother ladder stage. LPF2 is sharper and more aggressive. Key tracking and envelope depth now act independently per stage.</div>
         </div>
       </section>
 
@@ -719,10 +749,10 @@
     </section>
 
     <div class="footer-note">
-      Polyphony, unison, analog drive, and a full multi-stage filter block are now active in the live build.
+      Polyphony, unison, analog drive, multi-stage filters, key tracking, and filter envelope depth are now active in the live build.
     </div>
   </div>
 
-  <script type="module" src="./main.js?v=11"></script>
+  <script type="module" src="./main.js?v=12"></script>
 </body>
 </html>
