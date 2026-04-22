@@ -267,6 +267,7 @@ function bootWorkspaceShell() {
   assignWorkspacePanels();
   bindWorkspaceTabs();
   expandMatrixDestinationOptions();
+  import("./latencyPatch.js?v=18").catch(() => {});
   import("./performView.js?v=16").catch(() => {});
 }
 
