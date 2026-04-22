@@ -196,15 +196,58 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px;
+      transition: border-color 120ms linear, box-shadow 120ms linear, background 120ms linear;
+    }
+
+    .route-row.active {
+      border-color: rgba(255, 102, 0, 0.5);
+      box-shadow: 0 0 0 1px rgba(255, 102, 0, 0.15) inset;
+      background: rgba(255, 102, 0, 0.06);
+    }
+
+    .route-row.negative {
+      background: rgba(90, 120, 255, 0.06);
+      border-color: rgba(90, 120, 255, 0.35);
     }
 
     .route-row .amount-wrap {
       display: grid;
-      gap: 4px;
+      gap: 6px;
     }
 
     .route-row .amount-readout {
       font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .route-debug {
+      display: grid;
+      gap: 4px;
+    }
+
+    .route-meter {
+      position: relative;
+      height: 6px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .route-meter-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(255,102,0,0.28), rgba(255,102,0,0.85));
+    }
+
+    .route-row.negative .route-meter-fill {
+      background: linear-gradient(90deg, rgba(90,120,255,0.28), rgba(90,120,255,0.85));
+    }
+
+    .route-state {
+      font-size: 11px;
       color: var(--muted);
       text-align: right;
     }
@@ -723,7 +766,7 @@
       <section class="panel">
         <h2>MOD MATRIX</h2>
         <div class="matrix-panel">
-          <div class="route-row">
+          <div class="route-row" id="route-0-row">
             <select id="route-0-source">
               <option value="env">ENV</option>
               <option value="lfo">LFO</option>
@@ -749,9 +792,14 @@
             <div class="amount-wrap">
               <input id="route-0-amount" type="range" min="-1" max="1" step="0.01" value="0.60" />
               <div class="amount-readout" id="route-0-readout">0.60</div>
+              <div class="route-debug">
+                <div class="route-meter"><div class="route-meter-fill" id="route-0-meter-fill"></div></div>
+                <div class="route-state" id="route-0-state">Src 0.00 · Act 0.00</div>
+              </div>
             </div>
           </div>
-          <div class="route-row">
+
+          <div class="route-row" id="route-1-row">
             <select id="route-1-source">
               <option value="env">ENV</option>
               <option value="lfo" selected>LFO</option>
@@ -777,9 +825,14 @@
             <div class="amount-wrap">
               <input id="route-1-amount" type="range" min="-1" max="1" step="0.01" value="0.20" />
               <div class="amount-readout" id="route-1-readout">0.20</div>
+              <div class="route-debug">
+                <div class="route-meter"><div class="route-meter-fill" id="route-1-meter-fill"></div></div>
+                <div class="route-state" id="route-1-state">Src 0.00 · Act 0.00</div>
+              </div>
             </div>
           </div>
-          <div class="route-row">
+
+          <div class="route-row" id="route-2-row">
             <select id="route-2-source">
               <option value="env">ENV</option>
               <option value="lfo">LFO</option>
@@ -805,9 +858,14 @@
             <div class="amount-wrap">
               <input id="route-2-amount" type="range" min="-1" max="1" step="0.01" value="0.40" />
               <div class="amount-readout" id="route-2-readout">0.40</div>
+              <div class="route-debug">
+                <div class="route-meter"><div class="route-meter-fill" id="route-2-meter-fill"></div></div>
+                <div class="route-state" id="route-2-state">Src 0.00 · Act 0.00</div>
+              </div>
             </div>
           </div>
-          <div class="route-row">
+
+          <div class="route-row" id="route-3-row">
             <select id="route-3-source">
               <option value="env">ENV</option>
               <option value="lfo">LFO</option>
@@ -833,6 +891,10 @@
             <div class="amount-wrap">
               <input id="route-3-amount" type="range" min="-1" max="1" step="0.01" value="0.50" />
               <div class="amount-readout" id="route-3-readout">0.50</div>
+              <div class="route-debug">
+                <div class="route-meter"><div class="route-meter-fill" id="route-3-meter-fill"></div></div>
+                <div class="route-state" id="route-3-state">Src 0.00 · Act 0.00</div>
+              </div>
             </div>
           </div>
         </div>
@@ -892,10 +954,10 @@
     </section>
 
     <div class="footer-note">
-      Knob labels, static voice controls, per-stage filters, on-screen expression gestures, and per-note visual feedback are now active in the live build.
+      Knob labels, static voice controls, per-stage filters, on-screen expression gestures, per-note visual feedback, and live modulation-path debugging are now active in the live build.
     </div>
   </div>
 
-  <script type="module" src="./main.js?v=13"></script>
+  <script type="module" src="./main.js?v=14"></script>
 </body>
 </html>
