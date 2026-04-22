@@ -1,6 +1,6 @@
-import { Synth } from "./src/synth.js";
-import { UIEngine } from "./src/ui/uiEngine.js";
-import { KnobRenderer } from "./src/ui/knobRenderer.js";
+import { Synth } from "./src/synth.js?v=9";
+import { UIEngine } from "./src/ui/uiEngine.js?v=9";
+import { KnobRenderer } from "./src/ui/knobRenderer.js?v=9";
 
 const STORAGE_KEY = "zephyr-synth-presets-v1";
 
@@ -53,6 +53,7 @@ const defaults = {
   "delay.mix": 0.20,
   "reverb.mix": 0.25,
   "unison.spread": 0.35,
+  "analog.drift": 0.18,
 };
 
 const knobReadouts = {
@@ -77,6 +78,10 @@ const knobReadouts = {
     const el = byId("unison-spread-readout");
     if (el) el.textContent = `${Math.round(v * 100)}%`;
   },
+  "analog.drift": (v) => {
+    const el = byId("analog-drift-readout");
+    if (el) el.textContent = `${Math.round(v * 100)}%`;
+  },
 };
 
 const selectBindings = [
@@ -88,6 +93,7 @@ const selectBindings = [
 const sliderBindings = [
   { id: "voice-count", param: "voice.count", readoutId: "voice-count-readout", suffix: "", decimals: 0 },
   { id: "unison-count", param: "unison.count", readoutId: "unison-count-readout", suffix: "", decimals: 0 },
+  { id: "analog-instability", param: "analog.instability", readoutId: "analog-instability-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
   { id: "osc1-detune", param: "osc1.detune", readoutId: "osc1-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc2-detune", param: "osc2.detune", readoutId: "osc2-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc3-detune", param: "osc3.detune", readoutId: "osc3-detune-readout", suffix: " ct", decimals: 0 },
@@ -111,28 +117,39 @@ function injectVoicePanel() {
   const section = document.createElement("section");
   section.className = "panel";
   section.innerHTML = `
-    <h2>VOICE / UNISON</h2>
-    <div class="osc-grid">
+    <h2>VOICE / ANALOG</h2>
+    <div class="knob-pair" style="margin-bottom: 12px;">
       <div class="knob" data-param="unison.spread">
         <canvas class="bg" width="140" height="140"></canvas>
         <canvas class="fg" width="140" height="140"></canvas>
         <div class="knob-value" id="unison-spread-readout">35%</div>
       </div>
-      <div class="param-list">
-        <div class="param">
-          <label for="voice-count">Polyphony</label>
-          <input id="voice-count" type="range" min="1" max="8" step="1" value="8" />
-        </div>
-        <div class="status" id="voice-count-readout">8</div>
-
-        <div class="param">
-          <label for="unison-count">Unison</label>
-          <input id="unison-count" type="range" min="1" max="4" step="1" value="1" />
-        </div>
-        <div class="status" id="unison-count-readout">1</div>
-
-        <div class="status">Spread widens stereo and detunes stacked voices.</div>
+      <div class="knob" data-param="analog.drift">
+        <canvas class="bg" width="140" height="140"></canvas>
+        <canvas class="fg" width="140" height="140"></canvas>
+        <div class="knob-value" id="analog-drift-readout">18%</div>
       </div>
+    </div>
+    <div class="param-list">
+      <div class="param">
+        <label for="voice-count">Polyphony</label>
+        <input id="voice-count" type="range" min="1" max="8" step="1" value="8" />
+      </div>
+      <div class="status" id="voice-count-readout">8</div>
+
+      <div class="param">
+        <label for="unison-count">Unison</label>
+        <input id="unison-count" type="range" min="1" max="4" step="1" value="1" />
+      </div>
+      <div class="status" id="unison-count-readout">1</div>
+
+      <div class="param">
+        <label for="analog-instability">Instability</label>
+        <input id="analog-instability" type="range" min="0" max="0.5" step="0.01" value="0.12" />
+      </div>
+      <div class="status" id="analog-instability-readout">12%</div>
+
+      <div class="status">Spread thickens the stack. Drift and instability add slow pitch, filter and stereo motion.</div>
     </div>
   `;
 
@@ -160,6 +177,7 @@ function createInitialState() {
     sliders: {
       "voice-count": 8,
       "unison-count": 1,
+      "analog-instability": 0.12,
       "osc1-detune": 0,
       "osc2-detune": -7,
       "osc3-detune": 7,
@@ -193,8 +211,10 @@ function createBuiltinPresets() {
   warm.knobs["reverb.mix"] = 0.42;
   warm.knobs["delay.mix"] = 0.12;
   warm.knobs["unison.spread"] = 0.28;
+  warm.knobs["analog.drift"] = 0.14;
   warm.sliders["voice-count"] = 6;
   warm.sliders["unison-count"] = 2;
+  warm.sliders["analog-instability"] = 0.08;
   warm.sliders["env-attack"] = 0.22;
   warm.sliders["env-decay"] = 0.85;
   warm.sliders["env-sustain"] = 0.78;
@@ -209,8 +229,10 @@ function createBuiltinPresets() {
   bright.knobs["delay.mix"] = 0.28;
   bright.knobs["reverb.mix"] = 0.18;
   bright.knobs["unison.spread"] = 0.45;
+  bright.knobs["analog.drift"] = 0.11;
   bright.sliders["voice-count"] = 8;
   bright.sliders["unison-count"] = 2;
+  bright.sliders["analog-instability"] = 0.18;
   bright.sliders["delay-feedback"] = 0.48;
   bright.sliders["chorus-rate"] = 1.7;
   bright.routes[0] = { source: "lfo", dest: "osc1.detune", amount: 0.28 };
@@ -229,10 +251,12 @@ function createBuiltinPresets() {
   drone.knobs["macro1.value"] = 0.25;
   drone.knobs["macro2.value"] = 0.35;
   drone.knobs["unison.spread"] = 0.55;
+  drone.knobs["analog.drift"] = 0.34;
   drone.selects["osc2-wave"] = "triangle";
   drone.selects["osc3-wave"] = "square";
   drone.sliders["voice-count"] = 8;
   drone.sliders["unison-count"] = 3;
+  drone.sliders["analog-instability"] = 0.24;
   drone.sliders["env-attack"] = 0.6;
   drone.sliders["env-decay"] = 1.6;
   drone.sliders["env-sustain"] = 0.9;
@@ -363,7 +387,8 @@ function applySlider(id, value) {
   el.value = String(value);
   synth.setDiscreteParam(binding.param, value);
   if (readout) {
-    readout.textContent = `${Number(value).toFixed(binding.decimals)}${binding.suffix}`;
+    const displayValue = binding.transform ? binding.transform(Number(value)) : Number(value);
+    readout.textContent = `${Number(displayValue).toFixed(binding.decimals)}${binding.suffix}`;
   }
 }
 
@@ -542,14 +567,17 @@ function bindSelect(id, param) {
   });
 }
 
-function bindSlider(id, param, readoutId, suffix = "", decimals = 0) {
+function bindSlider(id, param, readoutId, suffix = "", decimals = 0, transform = null) {
   const el = byId(id);
   const readout = byId(readoutId);
   if (!el) return;
 
   const write = (value) => {
     synth.setDiscreteParam(param, value);
-    if (readout) readout.textContent = `${value.toFixed(decimals)}${suffix}`;
+    if (readout) {
+      const displayValue = transform ? transform(value) : value;
+      readout.textContent = `${Number(displayValue).toFixed(decimals)}${suffix}`;
+    }
   };
 
   write(Number(el.value));
@@ -809,8 +837,8 @@ async function boot() {
   bindKnobs();
 
   selectBindings.forEach(({ id, param }) => bindSelect(id, param));
-  sliderBindings.forEach(({ id, param, readoutId, suffix, decimals }) => {
-    bindSlider(id, param, readoutId, suffix, decimals);
+  sliderBindings.forEach(({ id, param, readoutId, suffix, decimals, transform }) => {
+    bindSlider(id, param, readoutId, suffix, decimals, transform);
   });
 
   bindRoutes();
