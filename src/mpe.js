@@ -41,6 +41,7 @@ export class MPE {
     for (let i = 0; i < noteIds.length; i++) {
       this.synth.updateNoteExpression(noteIds[i], updates);
     }
+    this.flushImmediate();
   }
 
   pushNoteExpressionUpdate(channel, noteNumber, updates) {
@@ -49,6 +50,7 @@ export class MPE {
     for (let i = 0; i < noteIds.length; i++) {
       this.synth.updateNoteExpression(noteIds[i], updates);
     }
+    this.flushImmediate();
   }
 
   refreshPrimaryNoteState(state) {
@@ -97,7 +99,22 @@ export class MPE {
     if (orderIndex >= 0) state.noteOrder.splice(orderIndex, 1);
   }
 
+  ensureRunning() {
+    const ctx = this.synth?.ctx;
+    if (!ctx || ctx.state === "running") return;
+    ctx.resume().catch(() => {});
+  }
+
+  flushImmediate() {
+    try {
+      this.synth.tick();
+    } catch {
+      // ignore immediate flush errors here; main frame loop still runs
+    }
+  }
+
   handleNoteOn(channel, noteNumber, velocityByte) {
+    this.ensureRunning();
     const state = this.ensureChannelState(channel);
     const freq = 440 * Math.pow(2, (noteNumber - 69) / 12);
     const velocity = velocityByte / 127;
@@ -116,6 +133,7 @@ export class MPE {
       timbre: state.timbre,
       bend: state.bend,
     });
+    this.flushImmediate();
   }
 
   handleNoteOff(channel, noteNumber) {
@@ -127,6 +145,7 @@ export class MPE {
     this.trackNoteEnd(state, noteId, noteNumber);
     this.synth.noteOff(noteId);
     this.refreshPrimaryNoteState(state);
+    this.flushImmediate();
   }
 
   /**
