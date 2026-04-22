@@ -1,6 +1,6 @@
-import { Synth } from "./src/synth.js?v=10";
-import { UIEngine } from "./src/ui/uiEngine.js?v=10";
-import { KnobRenderer } from "./src/ui/knobRenderer.js?v=10";
+import { Synth } from "./src/synth.js?v=11";
+import { UIEngine } from "./src/ui/uiEngine.js?v=11";
+import { KnobRenderer } from "./src/ui/knobRenderer.js?v=11";
 
 const STORAGE_KEY = "zephyr-synth-presets-v1";
 
@@ -46,6 +46,9 @@ const defaults = {
   "osc3.gain": 0.5,
   "master.gain": 0.6,
   "filter.cutoff": normalizeLog(1200, 60, 12000),
+  "filter2.cutoff": normalizeLog(2200, 60, 12000),
+  "hpf.cutoff": normalizeLog(30, 20, 4000),
+  "filter.parallelBlend": 0.5,
   "lfo.rate": normalizeLog(3, 0.1, 20),
   "macro1.value": 0.0,
   "macro2.value": 0.0,
@@ -66,6 +69,18 @@ const knobReadouts = {
   "filter.cutoff": (v) => {
     const el = byId("filter-cutoff-readout");
     if (el) el.textContent = `${Math.round(denormalizeLog(v, 60, 12000))} Hz`;
+  },
+  "filter2.cutoff": (v) => {
+    const el = byId("filter2-cutoff-readout");
+    if (el) el.textContent = `${Math.round(denormalizeLog(v, 60, 12000))} Hz`;
+  },
+  "hpf.cutoff": (v) => {
+    const el = byId("hpf-cutoff-readout");
+    if (el) el.textContent = `${Math.round(denormalizeLog(v, 20, 4000))} Hz`;
+  },
+  "filter.parallelBlend": (v) => {
+    const el = byId("filter-parallel-blend-readout");
+    if (el) el.textContent = `${Math.round(v * 100)}%`;
   },
   "lfo.rate": (v) => {
     const el = byId("lfo-rate-readout");
@@ -98,6 +113,7 @@ const selectBindings = [
   { id: "osc1-wave", param: "osc1.wave" },
   { id: "osc2-wave", param: "osc2.wave" },
   { id: "osc3-wave", param: "osc3.wave" },
+  { id: "filter-routing", param: "filter.routing" },
 ];
 
 const sliderBindings = [
@@ -109,6 +125,7 @@ const sliderBindings = [
   { id: "osc2-detune", param: "osc2.detune", readoutId: "osc2-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc3-detune", param: "osc3.detune", readoutId: "osc3-detune-readout", suffix: " ct", decimals: 0 },
   { id: "filter-resonance", param: "filter.resonance", readoutId: "filter-resonance-readout", suffix: "", decimals: 1 },
+  { id: "filter2-resonance", param: "filter2.resonance", readoutId: "filter2-resonance-readout", suffix: "", decimals: 1 },
   { id: "env-attack", param: "env.attack", readoutId: "env-attack-readout", suffix: " s", decimals: 3 },
   { id: "env-decay", param: "env.decay", readoutId: "env-decay-readout", suffix: " s", decimals: 2 },
   { id: "env-sustain", param: "env.sustain", readoutId: "env-sustain-readout", suffix: "", decimals: 2 },
@@ -202,6 +219,7 @@ function createInitialState() {
       "osc1-wave": "sawtooth",
       "osc2-wave": "sawtooth",
       "osc3-wave": "sawtooth",
+      "filter-routing": "serial",
     },
     sliders: {
       "voice-count": 8,
@@ -212,6 +230,7 @@ function createInitialState() {
       "osc2-detune": -7,
       "osc3-detune": 7,
       "filter-resonance": 0.5,
+      "filter2-resonance": 7.5,
       "env-attack": 0.01,
       "env-decay": 0.35,
       "env-sustain": 0.65,
@@ -237,6 +256,9 @@ function createBuiltinPresets() {
 
   const warm = structuredClone(init);
   warm.knobs["filter.cutoff"] = normalizeLog(420, 60, 12000);
+  warm.knobs["filter2.cutoff"] = normalizeLog(1400, 60, 12000);
+  warm.knobs["hpf.cutoff"] = normalizeLog(40, 20, 4000);
+  warm.knobs["filter.parallelBlend"] = 0.28;
   warm.knobs["chorus.mix"] = 0.35;
   warm.knobs["reverb.mix"] = 0.42;
   warm.knobs["delay.mix"] = 0.12;
@@ -244,20 +266,25 @@ function createBuiltinPresets() {
   warm.knobs["analog.drift"] = 0.14;
   warm.knobs["drive.voice"] = 0.18;
   warm.knobs["drive.master"] = 0.12;
+  warm.selects["filter-routing"] = "serial";
   warm.sliders["voice-count"] = 6;
   warm.sliders["unison-count"] = 2;
   warm.sliders["analog-instability"] = 0.08;
   warm.sliders["drive-compensation"] = 0.78;
+  warm.sliders["filter2-resonance"] = 5.5;
   warm.sliders["env-attack"] = 0.22;
   warm.sliders["env-decay"] = 0.85;
   warm.sliders["env-sustain"] = 0.78;
   warm.sliders["env-release"] = 1.2;
   warm.sliders["chorus-depth"] = 8.5;
   warm.routes[0] = { source: "env", dest: "filter.cutoff", amount: 0.72 };
-  warm.routes[1] = { source: "lfo", dest: "chorus.mix", amount: 0.18 };
+  warm.routes[1] = { source: "lfo", dest: "filter2.cutoff", amount: 0.12 };
 
   const bright = structuredClone(init);
   bright.knobs["filter.cutoff"] = normalizeLog(4200, 60, 12000);
+  bright.knobs["filter2.cutoff"] = normalizeLog(2800, 60, 12000);
+  bright.knobs["hpf.cutoff"] = normalizeLog(90, 20, 4000);
+  bright.knobs["filter.parallelBlend"] = 0.62;
   bright.knobs["lfo.rate"] = normalizeLog(5.8, 0.1, 20);
   bright.knobs["delay.mix"] = 0.28;
   bright.knobs["reverb.mix"] = 0.18;
@@ -265,15 +292,17 @@ function createBuiltinPresets() {
   bright.knobs["analog.drift"] = 0.11;
   bright.knobs["drive.voice"] = 0.26;
   bright.knobs["drive.master"] = 0.20;
+  bright.selects["filter-routing"] = "parallel";
   bright.sliders["voice-count"] = 8;
   bright.sliders["unison-count"] = 2;
   bright.sliders["analog-instability"] = 0.18;
   bright.sliders["drive-compensation"] = 0.70;
+  bright.sliders["filter2-resonance"] = 9.5;
   bright.sliders["delay-feedback"] = 0.48;
   bright.sliders["chorus-rate"] = 1.7;
   bright.routes[0] = { source: "lfo", dest: "osc1.detune", amount: 0.28 };
   bright.routes[1] = { source: "lfo", dest: "filter.cutoff", amount: 0.16 };
-  bright.routes[2] = { source: "macro1", dest: "delay.mix", amount: 0.55 };
+  bright.routes[2] = { source: "macro1", dest: "filter.parallelBlend", amount: 0.0 };
   bright.routes[3] = { source: "macro2", dest: "reverb.mix", amount: 0.30 };
 
   const drone = structuredClone(init);
@@ -281,6 +310,9 @@ function createBuiltinPresets() {
   drone.knobs["osc2.gain"] = 0.65;
   drone.knobs["osc3.gain"] = 0.65;
   drone.knobs["filter.cutoff"] = normalizeLog(260, 60, 12000);
+  drone.knobs["filter2.cutoff"] = normalizeLog(720, 60, 12000);
+  drone.knobs["hpf.cutoff"] = normalizeLog(28, 20, 4000);
+  drone.knobs["filter.parallelBlend"] = 0.35;
   drone.knobs["chorus.mix"] = 0.45;
   drone.knobs["delay.mix"] = 0.34;
   drone.knobs["reverb.mix"] = 0.52;
@@ -292,10 +324,12 @@ function createBuiltinPresets() {
   drone.knobs["drive.master"] = 0.24;
   drone.selects["osc2-wave"] = "triangle";
   drone.selects["osc3-wave"] = "square";
+  drone.selects["filter-routing"] = "serial";
   drone.sliders["voice-count"] = 8;
   drone.sliders["unison-count"] = 3;
   drone.sliders["analog-instability"] = 0.24;
   drone.sliders["drive-compensation"] = 0.82;
+  drone.sliders["filter2-resonance"] = 12.0;
   drone.sliders["env-attack"] = 0.6;
   drone.sliders["env-decay"] = 1.6;
   drone.sliders["env-sustain"] = 0.9;
@@ -303,7 +337,7 @@ function createBuiltinPresets() {
   drone.sliders["osc2-detune"] = -11;
   drone.sliders["osc3-detune"] = 11;
   drone.routes[0] = { source: "env", dest: "filter.cutoff", amount: 0.25 };
-  drone.routes[1] = { source: "lfo", dest: "amp.level", amount: 0.10 };
+  drone.routes[1] = { source: "lfo", dest: "hpf.cutoff", amount: 0.10 };
   drone.routes[2] = { source: "macro1", dest: "delay.mix", amount: 0.60 };
   drone.routes[3] = { source: "macro2", dest: "reverb.mix", amount: 0.65 };
 
