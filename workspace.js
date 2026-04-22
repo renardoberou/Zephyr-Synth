@@ -267,6 +267,7 @@ function bootWorkspaceShell() {
   assignWorkspacePanels();
   bindWorkspaceTabs();
   expandMatrixDestinationOptions();
+  import("./performView.js?v=16").catch(() => {});
 }
 
 if (document.readyState === "loading") {
