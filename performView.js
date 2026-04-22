@@ -1,4 +1,5 @@
 const NOTE_COLORS = ["#ff4fa6", "#5d7cff", "#53e1ff", "#6ef0a5", "#ffd35c", "#ff9c52", "#b16dff", "#8dff66"];
+const STAGED_MACRO_LABELS = ["Timbre", "Color", "Pulse Width", "Space", "Energy", "Volume"];
 
 function injectPerformStyles() {
   if (document.getElementById("perform-view-style")) return;
@@ -25,13 +26,23 @@ function injectPerformStyles() {
     .perform-value-main { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; color: var(--fg); }
     .perform-value-main .accent { color: var(--fg); font-variant-numeric: tabular-nums; }
     .perform-setup-strip { margin-top: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px; }
-    .perform-setup-chip, .perform-keyboard-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }
-    .perform-macros-panel .knob-pair { grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 16px; }
+    .perform-setup-chip, .perform-keyboard-chip, .perform-scene-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }
     .perform-panel-subcopy { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .perform-keyboard-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .perform-macros-panel .perform-live-bank { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 16px; }
+    .perform-macros-panel .perform-live-bank .knob { margin-top: 22px; }
+    .perform-stage-bank { display: grid; grid-template-columns: repeat(3, minmax(96px, 1fr)); gap: 10px; margin-top: 12px; }
+    .perform-stage-card { border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); padding: 10px; min-height: 86px; display: grid; align-content: space-between; gap: 10px; }
+    .perform-stage-top { display: grid; gap: 4px; }
+    .perform-stage-index { font-size: 10px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+    .perform-stage-name { font-size: 14px; color: var(--fg); }
+    .perform-stage-state { font-size: 11px; color: #7fb2ff; letter-spacing: 0.06em; text-transform: uppercase; }
     .perform-morph-panel .preset-panel { gap: 14px; }
     .perform-morph-panel .morph-wrap { padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
-    .perform-keyboard-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .perform-scene-row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .perform-scene-chip strong { color: var(--fg); font-weight: 600; }
     @media (max-width: 1100px) { .perform-monitor-head, .perform-monitor-body { grid-template-columns: 1fr; } .perform-note-list, .perform-value-list, .perform-plot-wrap { min-height: 0; } }
+    @media (max-width: 760px) { .perform-stage-bank { grid-template-columns: repeat(2, minmax(96px, 1fr)); } }
   `;
   document.head.appendChild(style);
 }
@@ -70,45 +81,88 @@ function enhanceMonitor() {
   chips.forEach((chip) => valueList?.appendChild(chip));
 }
 
+function decorateMacroPanel(macroPanel) {
+  if (!macroPanel || macroPanel.dataset.performDecorated === "true") return;
+  macroPanel.dataset.performDecorated = "true";
+  macroPanel.classList.add("perform-macros-panel");
+
+  const title = macroPanel.querySelector("h2");
+  if (title) title.textContent = "PERFORMANCE MACROS";
+
+  const subcopy = document.createElement("p");
+  subcopy.className = "perform-panel-subcopy";
+  subcopy.textContent = "Two macro lanes are live in the engine today. Six more macro identities are now staged in the shell so the bank can grow toward the target layout without destabilizing the synth.";
+  title?.insertAdjacentElement("afterend", subcopy);
+
+  const liveBank = macroPanel.querySelector(".knob-pair");
+  if (liveBank) {
+    liveBank.classList.add("perform-live-bank");
+    const knobs = Array.from(liveBank.querySelectorAll(".knob"));
+    if (knobs[0]) knobs[0].dataset.label = "ATMOSPHERE";
+    if (knobs[1]) knobs[1].dataset.label = "MOTION";
+  }
+
+  if (!macroPanel.querySelector(".perform-stage-bank")) {
+    const stageBank = document.createElement("div");
+    stageBank.className = "perform-stage-bank";
+    STAGED_MACRO_LABELS.forEach((label, index) => {
+      const card = document.createElement("div");
+      card.className = "perform-stage-card";
+      card.innerHTML = `
+        <div class="perform-stage-top">
+          <div class="perform-stage-index">Macro ${index + 3}</div>
+          <div class="perform-stage-name">${label}</div>
+        </div>
+        <div class="perform-stage-state">staged</div>
+      `;
+      stageBank.appendChild(card);
+    });
+    macroPanel.appendChild(stageBank);
+  }
+}
+
+function decorateMorphPanel(morphPanel) {
+  if (!morphPanel || morphPanel.dataset.performDecorated === "true") return;
+  morphPanel.dataset.performDecorated = "true";
+  morphPanel.classList.add("perform-morph-panel");
+  const title = morphPanel.querySelector("h2");
+  if (title) title.textContent = "MORPH";
+  const subcopy = document.createElement("p");
+  subcopy.className = "perform-panel-subcopy";
+  subcopy.textContent = "Preset morphing remains state-complete and now sits visually as a performance surface rather than a utility block.";
+  title?.insertAdjacentElement("afterend", subcopy);
+  if (!morphPanel.querySelector(".perform-scene-row")) {
+    const row = document.createElement("div");
+    row.className = "perform-scene-row";
+    row.innerHTML = `
+      <div class="perform-scene-chip">Scene <strong id="perform-scene-name">Init</strong></div>
+      <div class="perform-scene-chip">Snapshots <strong id="perform-snapshot-inline">A empty / B empty</strong></div>
+    `;
+    subcopy.insertAdjacentElement("afterend", row);
+  }
+}
+
+function decorateKeyboardPanel(keyboard) {
+  if (!keyboard || keyboard.dataset.performDecorated === "true") return;
+  keyboard.dataset.performDecorated = "true";
+  const title = keyboard.querySelector("h2");
+  if (title) {
+    const wrap = document.createElement("div");
+    wrap.className = "perform-keyboard-title";
+    const chip = document.createElement("div");
+    chip.className = "perform-keyboard-chip";
+    chip.id = "perform-active-chip";
+    chip.textContent = "Active notes 0";
+    title.replaceWith(wrap);
+    wrap.appendChild(title);
+    wrap.appendChild(chip);
+  }
+}
+
 function enhancePerformPanels() {
-  const macroPanel = findPanel("MACROS");
-  if (macroPanel && !macroPanel.dataset.performDecorated) {
-    macroPanel.dataset.performDecorated = "true";
-    macroPanel.classList.add("perform-macros-panel");
-    const title = macroPanel.querySelector("h2");
-    if (title) title.textContent = "PERFORMANCE MACROS";
-    const subcopy = document.createElement("p");
-    subcopy.className = "perform-panel-subcopy";
-    subcopy.textContent = "Macro controls are being promoted into the Perform workspace first, matching the target instrument direction.";
-    title?.insertAdjacentElement("afterend", subcopy);
-  }
-  const morphPanel = findPanel("PRESETS / MORPH");
-  if (morphPanel && !morphPanel.dataset.performDecorated) {
-    morphPanel.dataset.performDecorated = "true";
-    morphPanel.classList.add("perform-morph-panel");
-    const title = morphPanel.querySelector("h2");
-    if (title) title.textContent = "MORPH";
-    const subcopy = document.createElement("p");
-    subcopy.className = "perform-panel-subcopy";
-    subcopy.textContent = "Preset morphing remains state-complete and now sits visually as a performance surface, not just a utility block.";
-    title?.insertAdjacentElement("afterend", subcopy);
-  }
-  const keyboard = document.querySelector(".keyboard");
-  if (keyboard && !keyboard.dataset.performDecorated) {
-    keyboard.dataset.performDecorated = "true";
-    const title = keyboard.querySelector("h2");
-    if (title) {
-      const wrap = document.createElement("div");
-      wrap.className = "perform-keyboard-title";
-      const chip = document.createElement("div");
-      chip.className = "perform-keyboard-chip";
-      chip.id = "perform-active-chip";
-      chip.textContent = "Active notes 0";
-      title.replaceWith(wrap);
-      wrap.appendChild(title);
-      wrap.appendChild(chip);
-    }
-  }
+  decorateMacroPanel(findPanel("MACROS"));
+  decorateMorphPanel(findPanel("PRESETS / MORPH"));
+  decorateKeyboardPanel(document.querySelector(".keyboard"));
 }
 
 function extractVoiceRows() {
@@ -134,7 +188,7 @@ function renderNoteList() {
       const item = document.createElement("div");
       item.className = "perform-note-row";
       const color = NOTE_COLORS[index % NOTE_COLORS.length];
-      item.innerHTML = `<div class="perform-note-main"><span class="perform-note-dot" style="color:${color}; background:${color};"></span><span>${row.label}</span></div><div class="perform-note-sub">Voice ${index + 1} • intensity ${Math.round(row.opacity * 100)}%</div>`;
+      item.innerHTML = `<div class="perform-note-main"><span class="perform-note-dot" style="color:${color}; background:${color};"></span><span>${row.label}</span></div><div class="perform-note-sub">Voice ${index + 1} - intensity ${Math.round(row.opacity * 100)}%</div>`;
       list.appendChild(item);
     });
   }
@@ -150,7 +204,6 @@ function renderValueList() {
   const chips = Array.from(valueList.querySelectorAll(".expression-chip"));
   chips.forEach((chip, index) => {
     if (chip.dataset.reframed === "true") {
-      const label = chip.dataset.label || "Value";
       const valueEl = chip.querySelector(".accent");
       const sourceValue = document.getElementById(chip.dataset.valueId)?.textContent?.trim();
       if (valueEl && sourceValue) valueEl.textContent = sourceValue;
@@ -167,9 +220,19 @@ function renderValueList() {
   });
 }
 
+function renderSceneInfo() {
+  const presetSelect = document.getElementById("preset-select");
+  const sceneName = document.getElementById("perform-scene-name");
+  const snapshotInline = document.getElementById("perform-snapshot-inline");
+  const snapshotStatus = document.getElementById("snapshot-status");
+  if (sceneName && presetSelect) sceneName.textContent = presetSelect.value || "Init";
+  if (snapshotInline && snapshotStatus) snapshotInline.textContent = snapshotStatus.textContent.replace(" · ", " / ");
+}
+
 function frame() {
   renderNoteList();
   renderValueList();
+  renderSceneInfo();
   requestAnimationFrame(frame);
 }
 
