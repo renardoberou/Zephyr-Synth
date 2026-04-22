@@ -6,6 +6,7 @@ export class MPE {
     this.synth = synth;
     this.channels = new Map();
     this.noteSerial = 0;
+    this.pendingFlushTimers = [];
   }
 
   ensureChannelState(channel) {
@@ -41,7 +42,7 @@ export class MPE {
     for (let i = 0; i < noteIds.length; i++) {
       this.synth.updateNoteExpression(noteIds[i], updates);
     }
-    this.flushImmediate();
+    this.scheduleLatencyFlush();
   }
 
   pushNoteExpressionUpdate(channel, noteNumber, updates) {
@@ -50,7 +51,7 @@ export class MPE {
     for (let i = 0; i < noteIds.length; i++) {
       this.synth.updateNoteExpression(noteIds[i], updates);
     }
-    this.flushImmediate();
+    this.scheduleLatencyFlush();
   }
 
   refreshPrimaryNoteState(state) {
@@ -109,7 +110,28 @@ export class MPE {
     try {
       this.synth.tick();
     } catch {
-      // ignore immediate flush errors here; main frame loop still runs
+      // ignore immediate flush errors here; the main loop still runs
+    }
+  }
+
+  clearPendingFlushTimers() {
+    while (this.pendingFlushTimers.length) {
+      clearTimeout(this.pendingFlushTimers.pop());
+    }
+  }
+
+  scheduleLatencyFlush() {
+    this.flushImmediate();
+    this.clearPendingFlushTimers();
+
+    const offsets = [4, 8, 16, 24, 40, 64, 96];
+    for (let i = 0; i < offsets.length; i++) {
+      const timer = setTimeout(() => {
+        this.flushImmediate();
+        const index = this.pendingFlushTimers.indexOf(timer);
+        if (index >= 0) this.pendingFlushTimers.splice(index, 1);
+      }, offsets[i]);
+      this.pendingFlushTimers.push(timer);
     }
   }
 
@@ -133,7 +155,7 @@ export class MPE {
       timbre: state.timbre,
       bend: state.bend,
     });
-    this.flushImmediate();
+    this.scheduleLatencyFlush();
   }
 
   handleNoteOff(channel, noteNumber) {
@@ -145,7 +167,7 @@ export class MPE {
     this.trackNoteEnd(state, noteId, noteNumber);
     this.synth.noteOff(noteId);
     this.refreshPrimaryNoteState(state);
-    this.flushImmediate();
+    this.scheduleLatencyFlush();
   }
 
   /**
