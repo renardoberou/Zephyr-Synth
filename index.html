@@ -269,6 +269,72 @@
       border-color: var(--accent);
     }
 
+    .expression-view {
+      margin-top: 18px;
+      background: linear-gradient(180deg, var(--panel), #1d1d1d);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .expression-stage {
+      position: relative;
+      height: 180px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at center, rgba(255,102,0,0.08), rgba(255,255,255,0.02));
+      overflow: hidden;
+    }
+
+    .voice-orb {
+      position: absolute;
+      border-radius: 999px;
+      background: rgba(255, 102, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: left 40ms linear, top 40ms linear, width 40ms linear, height 40ms linear, transform 40ms linear, opacity 40ms linear, box-shadow 40ms linear;
+      will-change: transform, left, top, width, height, opacity;
+      pointer-events: none;
+    }
+
+    .voice-orb-label {
+      font-size: 11px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+      pointer-events: none;
+    }
+
+    .expression-readout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .expression-chip {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .expression-chip span {
+      display: block;
+    }
+
+    .expression-chip .label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .expression-chip .value {
+      font-size: 15px;
+    }
+
     .footer-note {
       margin-top: 14px;
       color: var(--muted);
@@ -485,19 +551,16 @@
               <input id="env-attack" type="range" min="0.001" max="2" step="0.001" value="0.01" />
             </div>
             <div class="status" id="env-attack-readout">0.010 s</div>
-
             <div class="param">
               <label for="env-decay">Decay</label>
               <input id="env-decay" type="range" min="0.01" max="3" step="0.01" value="0.35" />
             </div>
             <div class="status" id="env-decay-readout">0.35 s</div>
-
             <div class="param">
               <label for="env-sustain">Sustain</label>
               <input id="env-sustain" type="range" min="0" max="1" step="0.01" value="0.65" />
             </div>
             <div class="status" id="env-sustain-readout">0.65</div>
-
             <div class="param">
               <label for="env-release">Release</label>
               <input id="env-release" type="range" min="0.01" max="3" step="0.01" value="0.45" />
@@ -551,13 +614,11 @@
               <input id="chorus-rate" type="range" min="0.1" max="5" step="0.1" value="0.8" />
             </div>
             <div class="status" id="chorus-rate-readout">0.8 Hz</div>
-
             <div class="param">
               <label for="chorus-depth">Depth (ms)</label>
               <input id="chorus-depth" type="range" min="1" max="20" step="0.1" value="4" />
             </div>
             <div class="status" id="chorus-depth-readout">4.0 ms</div>
-
             <div class="param">
               <label for="fx-send">FX Send</label>
               <input id="fx-send" type="range" min="0" max="1" step="0.01" value="0.45" />
@@ -581,7 +642,6 @@
               <input id="delay-time" type="range" min="0.05" max="0.8" step="0.01" value="0.28" />
             </div>
             <div class="status" id="delay-time-readout">0.28 s</div>
-
             <div class="param">
               <label for="delay-feedback">Feedback</label>
               <input id="delay-feedback" type="range" min="0" max="0.95" step="0.01" value="0.35" />
@@ -691,7 +751,6 @@
               <div class="amount-readout" id="route-0-readout">0.60</div>
             </div>
           </div>
-
           <div class="route-row">
             <select id="route-1-source">
               <option value="env">ENV</option>
@@ -720,7 +779,6 @@
               <div class="amount-readout" id="route-1-readout">0.20</div>
             </div>
           </div>
-
           <div class="route-row">
             <select id="route-2-source">
               <option value="env">ENV</option>
@@ -749,7 +807,6 @@
               <div class="amount-readout" id="route-2-readout">0.40</div>
             </div>
           </div>
-
           <div class="route-row">
             <select id="route-3-source">
               <option value="env">ENV</option>
@@ -788,30 +845,24 @@
             <label for="preset-select">Preset Library</label>
             <select id="preset-select"></select>
           </div>
-
           <div class="button-row">
             <button class="small-btn" id="preset-load" type="button">Load Selected</button>
             <button class="small-btn" id="preset-delete" type="button">Delete Selected</button>
           </div>
-
           <div class="param">
             <label for="preset-name">Save Current As</label>
             <input class="preset-name" id="preset-name" type="text" placeholder="Preset name" />
           </div>
-
           <div class="button-row">
             <button class="small-btn" id="preset-save" type="button">Save Preset</button>
             <button class="small-btn" id="preset-overwrite" type="button">Overwrite Selected</button>
           </div>
-
           <div class="button-row three">
             <button class="small-btn" id="snapshot-a" type="button">Capture A</button>
             <button class="small-btn" id="snapshot-b" type="button">Capture B</button>
             <button class="small-btn" id="morph-reset" type="button">Reset Morph</button>
           </div>
-
           <div class="snapshot-status" id="snapshot-status">A: empty · B: empty</div>
-
           <div class="morph-wrap">
             <div class="morph-head">
               <span>Morph A → B</span>
@@ -828,11 +879,23 @@
       <div class="keys" id="keys"></div>
     </section>
 
+    <section class="expression-view">
+      <h2>EXPRESSION VIEW</h2>
+      <div class="expression-stage" id="expression-stage"></div>
+      <div class="expression-readout">
+        <div class="expression-chip"><span class="label">NOTE</span><span class="value" id="expr-note">—</span></div>
+        <div class="expression-chip"><span class="label">VELOCITY</span><span class="value" id="expr-velocity">0%</span></div>
+        <div class="expression-chip"><span class="label">PRESSURE</span><span class="value" id="expr-pressure">0%</span></div>
+        <div class="expression-chip"><span class="label">TIMBRE</span><span class="value" id="expr-timbre">0%</span></div>
+        <div class="expression-chip"><span class="label">BEND</span><span class="value" id="expr-bend">0%</span></div>
+      </div>
+    </section>
+
     <div class="footer-note">
-      Knob labels, static voice controls, per-stage filters, and velocity/MPE matrix sources are now active in the live build.
+      Knob labels, static voice controls, per-stage filters, on-screen expression gestures, and per-note visual feedback are now active in the live build.
     </div>
   </div>
 
-  <script type="module" src="./main.js?v=12"></script>
+  <script type="module" src="./main.js?v=13"></script>
 </body>
 </html>
