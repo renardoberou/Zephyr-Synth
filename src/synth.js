@@ -41,6 +41,12 @@ export class Synth {
       filter2Cutoff: 2200,
       filter2Resonance: 7.5,
       hpfCutoff: 30,
+      filterKeytrack: 0.35,
+      filter2Keytrack: 0.20,
+      hpfKeytrack: 0.0,
+      filterEnvDepth: 0.55,
+      filter2EnvDepth: 0.30,
+      hpfEnvDepth: 0.08,
       filterParallelBlend: 0.5,
       filterRoutingMode: "serial",
       masterGain: 0.6,
@@ -424,6 +430,12 @@ export class Synth {
       this.baseValues.filterRoutingMode = value === "parallel" ? "parallel" : "serial";
       this.updateAllVoiceRoutingSettings(this.ctx.currentTime);
     });
+    this.discreteParams.set("filter.keytrack", (value) => { this.baseValues.filterKeytrack = value; });
+    this.discreteParams.set("filter2.keytrack", (value) => { this.baseValues.filter2Keytrack = value; });
+    this.discreteParams.set("hpf.keytrack", (value) => { this.baseValues.hpfKeytrack = value; });
+    this.discreteParams.set("filter.envDepth", (value) => { this.baseValues.filterEnvDepth = value; });
+    this.discreteParams.set("filter2.envDepth", (value) => { this.baseValues.filter2EnvDepth = value; });
+    this.discreteParams.set("hpf.envDepth", (value) => { this.baseValues.hpfEnvDepth = value; });
     this.discreteParams.set("osc1.detune", (value) => { this.baseDetune.osc1 = value; });
     this.discreteParams.set("osc2.detune", (value) => { this.baseDetune.osc2 = value; });
     this.discreteParams.set("osc3.detune", (value) => { this.baseDetune.osc3 = value; });
@@ -584,10 +596,19 @@ export class Synth {
 
     const filterDrift = Math.sin((now * Math.PI * 2 * voice.driftRate * 0.63) + (voice.driftPhase * 0.71)) * this.baseValues.analogDrift * 220;
     const filterSlop = voice.randomFilterSeed * this.baseValues.analogInstability * 180;
+    const noteSemitoneOffset = this.getNoteSemitoneOffset(voice.frequency);
 
-    const finalCutoff1 = this.clamp(this.baseValues.filterCutoff + filterDrift + filterSlop + sums["filter.cutoff"], 40, 16000);
-    const finalCutoff2 = this.clamp(this.baseValues.filter2Cutoff + (filterDrift * 0.55) + (filterSlop * 0.4) + (sums["filter.cutoff"] * 0.35) + sums["filter2.cutoff"], 40, 16000);
-    const finalHpf = this.clamp(this.baseValues.hpfCutoff + (sums["hpf.cutoff"]) + Math.max(0, this.baseValues.analogInstability * 18 * voice.randomFilterSeed), 20, 4000);
+    const trackedCutoff1 = this.baseValues.filterCutoff * Math.pow(2, (noteSemitoneOffset * this.baseValues.filterKeytrack) / 12);
+    const trackedCutoff2 = this.baseValues.filter2Cutoff * Math.pow(2, (noteSemitoneOffset * this.baseValues.filter2Keytrack) / 12);
+    const trackedHpf = this.baseValues.hpfCutoff * Math.pow(2, (noteSemitoneOffset * this.baseValues.hpfKeytrack) / 12);
+
+    const envBoost1 = voice.env.value * this.baseValues.filterEnvDepth * 5200;
+    const envBoost2 = voice.env.value * this.baseValues.filter2EnvDepth * 4200;
+    const envBoostHpf = voice.env.value * this.baseValues.hpfEnvDepth * 900;
+
+    const finalCutoff1 = this.clamp(trackedCutoff1 + envBoost1 + filterDrift + filterSlop + sums["filter.cutoff"], 40, 16000);
+    const finalCutoff2 = this.clamp(trackedCutoff2 + envBoost2 + (filterDrift * 0.55) + (filterSlop * 0.4) + (sums["filter.cutoff"] * 0.35) + sums["filter2.cutoff"], 40, 16000);
+    const finalHpf = this.clamp(trackedHpf + envBoostHpf + sums["hpf.cutoff"] + Math.max(0, this.baseValues.analogInstability * 18 * voice.randomFilterSeed), 20, 4000);
 
     this.applyVoiceFilterSettings(voice, now, finalCutoff1, finalCutoff2, finalHpf);
 
@@ -805,6 +826,10 @@ export class Synth {
   setReverbMix(mix) {
     this.reverbBypassGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
     this.reverbWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
+  }
+
+  getNoteSemitoneOffset(freq) {
+    return 12 * Math.log2(Math.max(0.0001, freq) / this.baseFrequency);
   }
 
   waveToIndex(wave) {
