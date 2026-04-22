@@ -1,6 +1,6 @@
-import { Synth } from "./src/synth.js?v=12";
-import { UIEngine } from "./src/ui/uiEngine.js?v=12";
-import { KnobRenderer } from "./src/ui/knobRenderer.js?v=12";
+import { Synth } from "./src/synth.js?v=13";
+import { UIEngine } from "./src/ui/uiEngine.js?v=13";
+import { KnobRenderer } from "./src/ui/knobRenderer.js?v=13";
 
 const STORAGE_KEY = "zephyr-synth-presets-v1";
 
@@ -12,8 +12,6 @@ const statusEl = document.getElementById("status");
 const startButton = document.getElementById("start");
 
 const knobState = {};
-const knobControllers = new Map();
-
 let presetLibrary = [];
 let snapshotA = null;
 let snapshotB = null;
@@ -38,6 +36,10 @@ function denormalizeLog(norm, min, max) {
 
 function lerp(a, b, t) {
   return a + ((b - a) * t);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 const defaults = {
@@ -66,47 +68,20 @@ const knobReadouts = {
   "osc2.gain": (v) => { const el = byId("osc2-gain-readout"); if (el) el.textContent = v.toFixed(2); },
   "osc3.gain": (v) => { const el = byId("osc3-gain-readout"); if (el) el.textContent = v.toFixed(2); },
   "master.gain": (v) => { const el = byId("master-gain-readout"); if (el) el.textContent = v.toFixed(2); },
-  "filter.cutoff": (v) => {
-    const el = byId("filter-cutoff-readout");
-    if (el) el.textContent = `${Math.round(denormalizeLog(v, 60, 12000))} Hz`;
-  },
-  "filter2.cutoff": (v) => {
-    const el = byId("filter2-cutoff-readout");
-    if (el) el.textContent = `${Math.round(denormalizeLog(v, 60, 12000))} Hz`;
-  },
-  "hpf.cutoff": (v) => {
-    const el = byId("hpf-cutoff-readout");
-    if (el) el.textContent = `${Math.round(denormalizeLog(v, 20, 4000))} Hz`;
-  },
-  "filter.parallelBlend": (v) => {
-    const el = byId("filter-parallel-blend-readout");
-    if (el) el.textContent = `${Math.round(v * 100)}%`;
-  },
-  "lfo.rate": (v) => {
-    const el = byId("lfo-rate-readout");
-    if (el) el.textContent = `${denormalizeLog(v, 0.1, 20).toFixed(1)} Hz`;
-  },
+  "filter.cutoff": (v) => { const el = byId("filter-cutoff-readout"); if (el) el.textContent = `${Math.round(denormalizeLog(v, 60, 12000))} Hz`; },
+  "filter2.cutoff": (v) => { const el = byId("filter2-cutoff-readout"); if (el) el.textContent = `${Math.round(denormalizeLog(v, 60, 12000))} Hz`; },
+  "hpf.cutoff": (v) => { const el = byId("hpf-cutoff-readout"); if (el) el.textContent = `${Math.round(denormalizeLog(v, 20, 4000))} Hz`; },
+  "filter.parallelBlend": (v) => { const el = byId("filter-parallel-blend-readout"); if (el) el.textContent = `${Math.round(v * 100)}%`; },
+  "lfo.rate": (v) => { const el = byId("lfo-rate-readout"); if (el) el.textContent = `${denormalizeLog(v, 0.1, 20).toFixed(1)} Hz`; },
   "macro1.value": (v) => { const el = byId("macro1-readout"); if (el) el.textContent = v.toFixed(2); },
   "macro2.value": (v) => { const el = byId("macro2-readout"); if (el) el.textContent = v.toFixed(2); },
   "chorus.mix": (v) => { const el = byId("chorus-mix-readout"); if (el) el.textContent = v.toFixed(2); },
   "delay.mix": (v) => { const el = byId("delay-mix-readout"); if (el) el.textContent = v.toFixed(2); },
   "reverb.mix": (v) => { const el = byId("reverb-mix-readout"); if (el) el.textContent = v.toFixed(2); },
-  "unison.spread": (v) => {
-    const el = byId("unison-spread-readout");
-    if (el) el.textContent = `${Math.round(v * 100)}%`;
-  },
-  "analog.drift": (v) => {
-    const el = byId("analog-drift-readout");
-    if (el) el.textContent = `${Math.round(v * 100)}%`;
-  },
-  "drive.voice": (v) => {
-    const el = byId("voice-drive-readout");
-    if (el) el.textContent = `${Math.round(v * 100)}%`;
-  },
-  "drive.master": (v) => {
-    const el = byId("master-drive-readout");
-    if (el) el.textContent = `${Math.round(v * 100)}%`;
-  },
+  "unison.spread": (v) => { const el = byId("unison-spread-readout"); if (el) el.textContent = `${Math.round(v * 100)}%`; },
+  "analog.drift": (v) => { const el = byId("analog-drift-readout"); if (el) el.textContent = `${Math.round(v * 100)}%`; },
+  "drive.voice": (v) => { const el = byId("voice-drive-readout"); if (el) el.textContent = `${Math.round(v * 100)}%`; },
+  "drive.master": (v) => { const el = byId("master-drive-readout"); if (el) el.textContent = `${Math.round(v * 100)}%`; },
 };
 
 const selectBindings = [
@@ -143,79 +118,6 @@ const sliderBindings = [
   { id: "delay-feedback", param: "delay.feedback", readoutId: "delay-feedback-readout", suffix: "", decimals: 2 },
   { id: "reverb-decay", param: "reverb.decay", readoutId: "reverb-decay-readout", suffix: " s", decimals: 1 },
 ];
-
-function injectVoicePanel() {
-  const grid = document.querySelector(".synth-grid");
-  if (!grid || byId("voice-count")) return;
-
-  const section = document.createElement("section");
-  section.className = "panel";
-  section.innerHTML = `
-    <h2>VOICE / ANALOG</h2>
-    <div class="knob-pair" style="margin-bottom: 12px;">
-      <div class="knob" data-param="unison.spread">
-        <canvas class="bg" width="140" height="140"></canvas>
-        <canvas class="fg" width="140" height="140"></canvas>
-        <div class="knob-value" id="unison-spread-readout">35%</div>
-      </div>
-      <div class="knob" data-param="analog.drift">
-        <canvas class="bg" width="140" height="140"></canvas>
-        <canvas class="fg" width="140" height="140"></canvas>
-        <div class="knob-value" id="analog-drift-readout">18%</div>
-      </div>
-    </div>
-    <div class="knob-pair" style="margin-bottom: 12px;">
-      <div class="knob" data-param="drive.voice">
-        <canvas class="bg" width="140" height="140"></canvas>
-        <canvas class="fg" width="140" height="140"></canvas>
-        <div class="knob-value" id="voice-drive-readout">22%</div>
-      </div>
-      <div class="knob" data-param="drive.master">
-        <canvas class="bg" width="140" height="140"></canvas>
-        <canvas class="fg" width="140" height="140"></canvas>
-        <div class="knob-value" id="master-drive-readout">16%</div>
-      </div>
-    </div>
-    <div class="param-list">
-      <div class="param">
-        <label for="voice-count">Polyphony</label>
-        <input id="voice-count" type="range" min="1" max="8" step="1" value="8" />
-      </div>
-      <div class="status" id="voice-count-readout">8</div>
-
-      <div class="param">
-        <label for="unison-count">Unison</label>
-        <input id="unison-count" type="range" min="1" max="4" step="1" value="1" />
-      </div>
-      <div class="status" id="unison-count-readout">1</div>
-
-      <div class="param">
-        <label for="analog-instability">Instability</label>
-        <input id="analog-instability" type="range" min="0" max="0.5" step="0.01" value="0.12" />
-      </div>
-      <div class="status" id="analog-instability-readout">12%</div>
-
-      <div class="param">
-        <label for="drive-compensation">Drive Compensation</label>
-        <input id="drive-compensation" type="range" min="0" max="1" step="0.01" value="0.72" />
-      </div>
-      <div class="status" id="drive-compensation-readout">72%</div>
-
-      <div class="status">Spread thickens the stack. Drift and instability add motion. Voice and master drive add analog saturation with level compensation.</div>
-    </div>
-  `;
-
-  const presetPanel = Array.from(grid.querySelectorAll(".panel")).find((panel) => {
-    const heading = panel.querySelector("h2");
-    return heading && heading.textContent.includes("PRESETS");
-  });
-
-  if (presetPanel) {
-    grid.insertBefore(section, presetPanel);
-  } else {
-    grid.appendChild(section);
-  }
-}
 
 function createInitialState() {
   return {
@@ -324,9 +226,9 @@ function createBuiltinPresets() {
   bright.sliders["hpf-env-depth"] = 0.10;
   bright.sliders["delay-feedback"] = 0.48;
   bright.sliders["chorus-rate"] = 1.7;
-  bright.routes[0] = { source: "lfo", dest: "osc1.detune", amount: 0.28 };
-  bright.routes[1] = { source: "lfo", dest: "filter.cutoff", amount: 0.16 };
-  bright.routes[2] = { source: "macro1", dest: "filter2.cutoff", amount: 0.22 };
+  bright.routes[0] = { source: "velocity", dest: "amp.level", amount: 0.42 };
+  bright.routes[1] = { source: "pressure", dest: "filter.cutoff", amount: 0.25 };
+  bright.routes[2] = { source: "timbre", dest: "filter2.cutoff", amount: 0.22 };
   bright.routes[3] = { source: "macro2", dest: "reverb.mix", amount: 0.30 };
 
   const drone = structuredClone(init);
@@ -366,8 +268,8 @@ function createBuiltinPresets() {
   drone.sliders["env-release"] = 2.2;
   drone.sliders["osc2-detune"] = -11;
   drone.sliders["osc3-detune"] = 11;
-  drone.routes[0] = { source: "env", dest: "filter.cutoff", amount: 0.25 };
-  drone.routes[1] = { source: "lfo", dest: "hpf.cutoff", amount: 0.10 };
+  drone.routes[0] = { source: "pressure", dest: "filter.cutoff", amount: 0.20 };
+  drone.routes[1] = { source: "timbre", dest: "hpf.cutoff", amount: 0.08 };
   drone.routes[2] = { source: "macro1", dest: "delay.mix", amount: 0.60 };
   drone.routes[3] = { source: "macro2", dest: "reverb.mix", amount: 0.65 };
 
@@ -410,7 +312,6 @@ function populatePresetSelect(selectedName = null) {
   if (!select) return;
 
   select.innerHTML = "";
-
   presetLibrary.forEach((preset, index) => {
     const option = document.createElement("option");
     option.value = preset.name;
@@ -427,13 +328,7 @@ function getSelectedPreset() {
 }
 
 function collectState() {
-  const state = {
-    version: 1,
-    knobs: {},
-    selects: {},
-    sliders: {},
-    routes: [],
-  };
+  const state = { version: 1, knobs: {}, selects: {}, sliders: {}, routes: [] };
 
   Object.keys(defaults).forEach((key) => {
     state.knobs[key] = knobState[key] ?? defaults[key];
@@ -454,12 +349,7 @@ function collectState() {
     const destEl = byId(`route-${i}-dest`);
     const amountEl = byId(`route-${i}-amount`);
     if (!sourceEl || !destEl || !amountEl) continue;
-
-    state.routes.push({
-      source: sourceEl.value,
-      dest: destEl.value,
-      amount: Number(amountEl.value),
-    });
+    state.routes.push({ source: sourceEl.value, dest: destEl.value, amount: Number(amountEl.value) });
   }
 
   return state;
@@ -476,7 +366,6 @@ function applySelect(id, value) {
   const binding = selectBindings.find((item) => item.id === id);
   const el = byId(id);
   if (!binding || !el) return;
-
   el.value = value;
   synth.setDiscreteParam(binding.param, value);
 }
@@ -504,7 +393,6 @@ function applyRoutes(routes) {
     const destEl = byId(`route-${i}-dest`);
     const amountEl = byId(`route-${i}-amount`);
     const readoutEl = byId(`route-${i}-readout`);
-
     if (!sourceEl || !destEl || !amountEl) continue;
 
     sourceEl.value = route.source;
@@ -512,70 +400,34 @@ function applyRoutes(routes) {
     amountEl.value = String(route.amount);
     if (readoutEl) readoutEl.textContent = Number(route.amount).toFixed(2);
 
-    synth.setRoute(i, {
-      source: route.source,
-      dest: route.dest,
-      amount: Number(route.amount),
-    });
+    synth.setRoute(i, { source: route.source, dest: route.dest, amount: Number(route.amount) });
   }
 }
 
 function applyState(state) {
   if (!state) return;
-
-  Object.entries(state.knobs ?? {}).forEach(([key, value]) => {
-    applyKnob(key, Number(value));
-  });
-
-  Object.entries(state.selects ?? {}).forEach(([id, value]) => {
-    applySelect(id, value);
-  });
-
-  Object.entries(state.sliders ?? {}).forEach(([id, value]) => {
-    applySlider(id, Number(value));
-  });
-
-  if (Array.isArray(state.routes)) {
-    applyRoutes(state.routes);
-  }
+  Object.entries(state.knobs ?? {}).forEach(([key, value]) => applyKnob(key, Number(value)));
+  Object.entries(state.selects ?? {}).forEach(([id, value]) => applySelect(id, value));
+  Object.entries(state.sliders ?? {}).forEach(([id, value]) => applySlider(id, Number(value)));
+  if (Array.isArray(state.routes)) applyRoutes(state.routes);
 }
 
 function morphStates(a, b, t) {
-  const result = {
-    version: 1,
-    knobs: {},
-    selects: {},
-    sliders: {},
-    routes: [],
-  };
+  const result = { version: 1, knobs: {}, selects: {}, sliders: {}, routes: [] };
 
-  const knobKeys = new Set([
-    ...Object.keys(a.knobs ?? {}),
-    ...Object.keys(b.knobs ?? {}),
-  ]);
-
+  const knobKeys = new Set([...Object.keys(a.knobs ?? {}), ...Object.keys(b.knobs ?? {})]);
   knobKeys.forEach((key) => {
     const av = Number(a.knobs?.[key] ?? defaults[key] ?? 0);
     const bv = Number(b.knobs?.[key] ?? defaults[key] ?? 0);
     result.knobs[key] = lerp(av, bv, t);
   });
 
-  const selectKeys = new Set([
-    ...Object.keys(a.selects ?? {}),
-    ...Object.keys(b.selects ?? {}),
-  ]);
-
+  const selectKeys = new Set([...Object.keys(a.selects ?? {}), ...Object.keys(b.selects ?? {})]);
   selectKeys.forEach((key) => {
-    result.selects[key] = t < 0.5
-      ? (a.selects?.[key] ?? b.selects?.[key])
-      : (b.selects?.[key] ?? a.selects?.[key]);
+    result.selects[key] = t < 0.5 ? (a.selects?.[key] ?? b.selects?.[key]) : (b.selects?.[key] ?? a.selects?.[key]);
   });
 
-  const sliderKeys = new Set([
-    ...Object.keys(a.sliders ?? {}),
-    ...Object.keys(b.sliders ?? {}),
-  ]);
-
+  const sliderKeys = new Set([...Object.keys(a.sliders ?? {}), ...Object.keys(b.sliders ?? {})]);
   sliderKeys.forEach((key) => {
     const av = Number(a.sliders?.[key] ?? 0);
     const bv = Number(b.sliders?.[key] ?? 0);
@@ -607,13 +459,10 @@ function bindKnobs() {
     const bg = el.querySelector(".bg");
     const fg = el.querySelector(".fg");
     const paramKey = el.dataset.param;
-
     if (!bg || !fg || !paramKey) return;
 
     const renderer = new KnobRenderer(bg, fg);
-    knobControllers.set(paramKey, { renderer, el });
     ui.register(paramKey, renderer);
-
     knobState[paramKey] = defaults[paramKey] ?? 0.5;
     applyKnob(paramKey, knobState[paramKey]);
 
@@ -624,34 +473,23 @@ function bindKnobs() {
       e.preventDefault();
       dragging = true;
       lastY = e.clientY;
-      try {
-        el.setPointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
+      try { el.setPointerCapture(e.pointerId); } catch {}
     };
 
     const onMove = (e) => {
       if (!dragging || lastY === null) return;
       e.preventDefault();
-
       const dy = lastY - e.clientY;
       lastY = e.clientY;
-
       let value = (knobState[paramKey] ?? 0.5) + (dy * 0.005);
-      value = Math.max(0, Math.min(1, value));
-
+      value = clamp(value, 0, 1);
       applyKnob(paramKey, value);
     };
 
     const onUp = (e) => {
       dragging = false;
       lastY = null;
-      try {
-        el.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
+      try { el.releasePointerCapture(e.pointerId); } catch {}
     };
 
     el.addEventListener("pointerdown", onDown);
@@ -664,7 +502,6 @@ function bindKnobs() {
 function bindSelect(id, param) {
   const el = byId(id);
   if (!el) return;
-
   el.addEventListener("change", () => {
     synth.setDiscreteParam(param, el.value);
   });
@@ -684,10 +521,7 @@ function bindSlider(id, param, readoutId, suffix = "", decimals = 0, transform =
   };
 
   write(Number(el.value));
-
-  el.addEventListener("input", () => {
-    write(Number(el.value));
-  });
+  el.addEventListener("input", () => write(Number(el.value)));
 }
 
 function bindRoutes() {
@@ -696,31 +530,119 @@ function bindRoutes() {
     const destEl = byId(`route-${i}-dest`);
     const amountEl = byId(`route-${i}-amount`);
     const readoutEl = byId(`route-${i}-readout`);
-
     if (!sourceEl || !destEl || !amountEl) continue;
 
     const apply = () => {
       const amount = Number(amountEl.value);
-      synth.setRoute(i, {
-        source: sourceEl.value,
-        dest: destEl.value,
-        amount,
-      });
+      synth.setRoute(i, { source: sourceEl.value, dest: destEl.value, amount });
       if (readoutEl) readoutEl.textContent = amount.toFixed(2);
     };
 
     apply();
-
     sourceEl.addEventListener("change", apply);
     destEl.addEventListener("change", apply);
     amountEl.addEventListener("input", apply);
   }
 }
 
+function getPointerMetrics(event, element, originX = null) {
+  const rect = element.getBoundingClientRect();
+  const x = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+  const y = clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
+  const pressure = 1 - y;
+  const timbre = x;
+  const velocity = clamp(0.45 + ((1 - y) * 0.55), 0, 1);
+  const bendBase = originX === null ? x : clamp((event.clientX - originX) / Math.max(1, rect.width / 2), -1, 1);
+  return { x, y, pressure, timbre, velocity, bend: bendBase };
+}
+
+function getVoiceSnapshots() {
+  return synth.voices
+    .filter((voice) => voice.isActive || voice.env.stage !== "idle")
+    .map((voice) => {
+      const bend = clamp(voice.expression?.bend ?? 0, -1, 1);
+      const playedFrequency = voice.frequency * Math.pow(2, (bend * (synth.pitchBendRangeSemitones ?? 2)) / 12);
+      return {
+        noteId: voice.noteId,
+        groupId: voice.groupId,
+        label: String(voice.groupId ?? voice.noteId ?? "note").replace(/^ui-/, "").replace(/::.*$/, ""),
+        env: voice.env.value,
+        pan: clamp(voice.panner?.pan?.value ?? voice.basePan ?? 0, -1, 1),
+        frequency: playedFrequency,
+        velocity: clamp(voice.expression?.velocity ?? 1, 0, 1),
+        pressure: clamp(voice.expression?.pressure ?? 0, 0, 1),
+        timbre: clamp(voice.expression?.timbre ?? 0, 0, 1),
+        bend,
+      };
+    });
+}
+
+function renderExpressionStage() {
+  const stage = byId("expression-stage");
+  if (!stage) return;
+
+  const voices = getVoiceSnapshots();
+  const activeIds = new Set(voices.map((voice) => voice.noteId));
+
+  Array.from(stage.querySelectorAll(".voice-orb")).forEach((orb) => {
+    if (!activeIds.has(orb.dataset.voiceId)) orb.remove();
+  });
+
+  voices.forEach((voice) => {
+    let orb = stage.querySelector(`.voice-orb[data-voice-id="${CSS.escape(voice.noteId)}"]`);
+    if (!orb) {
+      orb = document.createElement("div");
+      orb.className = "voice-orb";
+      orb.dataset.voiceId = voice.noteId;
+      orb.innerHTML = `<span class="voice-orb-label"></span>`;
+      stage.appendChild(orb);
+    }
+
+    const label = orb.querySelector(".voice-orb-label");
+    if (label) label.textContent = voice.label;
+
+    const x = clamp(((voice.pan + 1) * 0.5), 0.02, 0.98);
+    const freqNorm = clamp((Math.log2(Math.max(40, voice.frequency)) - Math.log2(40)) / (Math.log2(1400) - Math.log2(40)), 0, 1);
+    const y = 1 - ((freqNorm * 0.72) + (voice.pressure * 0.18) + 0.05);
+    const size = 24 + (voice.env * 22) + (voice.pressure * 18);
+    const glow = 6 + (voice.timbre * 24);
+    const opacity = 0.28 + (voice.env * 0.72);
+
+    orb.style.left = `${x * 100}%`;
+    orb.style.top = `${y * 100}%`;
+    orb.style.width = `${size}px`;
+    orb.style.height = `${size}px`;
+    orb.style.opacity = opacity.toFixed(3);
+    orb.style.boxShadow = `0 0 ${glow}px rgba(255, 102, 0, 0.55)`;
+    orb.style.transform = `translate(-50%, -50%) scale(${0.86 + (voice.velocity * 0.28)})`;
+  });
+
+  const primary = voices[0];
+  const noteEl = byId("expr-note");
+  const velEl = byId("expr-velocity");
+  const pressureEl = byId("expr-pressure");
+  const timbreEl = byId("expr-timbre");
+  const bendEl = byId("expr-bend");
+
+  if (!primary) {
+    if (noteEl) noteEl.textContent = "—";
+    if (velEl) velEl.textContent = "0%";
+    if (pressureEl) pressureEl.textContent = "0%";
+    if (timbreEl) timbreEl.textContent = "0%";
+    if (bendEl) bendEl.textContent = "0%";
+    return;
+  }
+
+  if (noteEl) noteEl.textContent = primary.label;
+  if (velEl) velEl.textContent = `${Math.round(primary.velocity * 100)}%`;
+  if (pressureEl) pressureEl.textContent = `${Math.round(primary.pressure * 100)}%`;
+  if (timbreEl) timbreEl.textContent = `${Math.round(primary.timbre * 100)}%`;
+  if (bendEl) bendEl.textContent = `${Math.round(primary.bend * 100)}%`;
+}
+
 function buildKeyboard() {
   const keysEl = byId("keys");
   if (!keysEl) return;
-
   keysEl.innerHTML = "";
 
   const notes = [
@@ -741,8 +663,10 @@ function buildKeyboard() {
     btn.textContent = note.name;
 
     const noteId = `ui-${note.name}`;
+    let activePointerId = null;
+    let originX = null;
 
-    const start = async () => {
+    const start = async (event) => {
       if (ctx.state !== "running") {
         await ctx.resume();
         if (startButton) {
@@ -751,20 +675,48 @@ function buildKeyboard() {
         }
         setStatus("Audio running");
       }
-      synth.noteOn(note.freq, noteId);
+
+      activePointerId = event.pointerId;
+      originX = event.clientX;
+      const metrics = getPointerMetrics(event, btn, originX);
+      synth.noteOn(note.freq, noteId, {
+        velocity: metrics.velocity,
+        pressure: metrics.pressure,
+        timbre: metrics.timbre,
+        bend: 0,
+      });
       btn.classList.add("active");
+      try { btn.setPointerCapture(event.pointerId); } catch {}
     };
 
-    const stop = () => {
+    const move = (event) => {
+      if (activePointerId !== event.pointerId) return;
+      const metrics = getPointerMetrics(event, btn, originX);
+      synth.updateNoteExpression(noteId, {
+        velocity: metrics.velocity,
+        pressure: metrics.pressure,
+        timbre: metrics.timbre,
+        bend: metrics.bend,
+      });
+    };
+
+    const stop = (event) => {
+      if (event && activePointerId !== event.pointerId) return;
       synth.noteOff(noteId);
       btn.classList.remove("active");
+      if (event) {
+        try { btn.releasePointerCapture(event.pointerId); } catch {}
+      }
+      activePointerId = null;
+      originX = null;
     };
 
     btn.addEventListener("pointerdown", start);
+    btn.addEventListener("pointermove", move);
     btn.addEventListener("pointerup", stop);
     btn.addEventListener("pointercancel", stop);
-    btn.addEventListener("pointerleave", (e) => {
-      if (e.buttons) stop();
+    btn.addEventListener("pointerleave", (event) => {
+      if (event.buttons) move(event);
     });
 
     keysEl.appendChild(btn);
@@ -810,12 +762,8 @@ function bindPresetUI() {
 
       const existingIndex = presetLibrary.findIndex((item) => item.name === name);
       const payload = { name, state: collectState() };
-
-      if (existingIndex >= 0) {
-        presetLibrary[existingIndex] = payload;
-      } else {
-        presetLibrary.push(payload);
-      }
+      if (existingIndex >= 0) presetLibrary[existingIndex] = payload;
+      else presetLibrary.push(payload);
 
       savePresetLibrary();
       populatePresetSelect(name);
@@ -830,15 +778,9 @@ function bindPresetUI() {
         setStatus("No preset selected");
         return;
       }
-
       const idx = presetLibrary.findIndex((item) => item.name === preset.name);
       if (idx < 0) return;
-
-      presetLibrary[idx] = {
-        name: preset.name,
-        state: collectState(),
-      };
-
+      presetLibrary[idx] = { name: preset.name, state: collectState() };
       savePresetLibrary();
       populatePresetSelect(preset.name);
       if (presetName) presetName.value = preset.name;
@@ -850,12 +792,8 @@ function bindPresetUI() {
     presetDelete.addEventListener("click", () => {
       const preset = getSelectedPreset();
       if (!preset) return;
-
       presetLibrary = presetLibrary.filter((item) => item.name !== preset.name);
-      if (presetLibrary.length === 0) {
-        presetLibrary = createBuiltinPresets();
-      }
-
+      if (presetLibrary.length === 0) presetLibrary = createBuiltinPresets();
       savePresetLibrary();
       populatePresetSelect();
       setStatus(`Deleted preset: ${preset.name}`);
@@ -882,14 +820,11 @@ function bindPresetUI() {
     morphSlider.addEventListener("input", () => {
       const t = Number(morphSlider.value);
       if (morphReadout) morphReadout.textContent = t.toFixed(2);
-
       if (!snapshotA || !snapshotB) {
         setStatus("Capture A and B first");
         return;
       }
-
-      const morphed = morphStates(snapshotA, snapshotB, t);
-      applyState(morphed);
+      applyState(morphStates(snapshotA, snapshotB, t));
     });
   }
 
@@ -912,7 +847,6 @@ function bindPresetUI() {
 
 async function boot() {
   try {
-    injectVoicePanel();
     await synth.init();
     setStatus("Ready");
   } catch (err) {
@@ -924,9 +858,7 @@ async function boot() {
   if (startButton) {
     startButton.addEventListener("click", async () => {
       try {
-        if (ctx.state !== "running") {
-          await ctx.resume();
-        }
+        if (ctx.state !== "running") await ctx.resume();
         startButton.classList.add("active");
         startButton.textContent = "Audio Running";
         setStatus("Audio running");
@@ -938,12 +870,10 @@ async function boot() {
   }
 
   bindKnobs();
-
   selectBindings.forEach(({ id, param }) => bindSelect(id, param));
   sliderBindings.forEach(({ id, param, readoutId, suffix, decimals, transform }) => {
     bindSlider(id, param, readoutId, suffix, decimals, transform);
   });
-
   bindRoutes();
   buildKeyboard();
   bindPresetUI();
@@ -952,6 +882,7 @@ async function boot() {
     try {
       synth.tick();
       ui.frame();
+      renderExpressionStage();
     } catch (err) {
       console.error(err);
       setStatus("Runtime error");
