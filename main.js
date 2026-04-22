@@ -1,6 +1,6 @@
-import { Synth } from "./src/synth.js?v=9";
-import { UIEngine } from "./src/ui/uiEngine.js?v=9";
-import { KnobRenderer } from "./src/ui/knobRenderer.js?v=9";
+import { Synth } from "./src/synth.js?v=10";
+import { UIEngine } from "./src/ui/uiEngine.js?v=10";
+import { KnobRenderer } from "./src/ui/knobRenderer.js?v=10";
 
 const STORAGE_KEY = "zephyr-synth-presets-v1";
 
@@ -54,6 +54,8 @@ const defaults = {
   "reverb.mix": 0.25,
   "unison.spread": 0.35,
   "analog.drift": 0.18,
+  "drive.voice": 0.22,
+  "drive.master": 0.16,
 };
 
 const knobReadouts = {
@@ -82,6 +84,14 @@ const knobReadouts = {
     const el = byId("analog-drift-readout");
     if (el) el.textContent = `${Math.round(v * 100)}%`;
   },
+  "drive.voice": (v) => {
+    const el = byId("voice-drive-readout");
+    if (el) el.textContent = `${Math.round(v * 100)}%`;
+  },
+  "drive.master": (v) => {
+    const el = byId("master-drive-readout");
+    if (el) el.textContent = `${Math.round(v * 100)}%`;
+  },
 };
 
 const selectBindings = [
@@ -94,6 +104,7 @@ const sliderBindings = [
   { id: "voice-count", param: "voice.count", readoutId: "voice-count-readout", suffix: "", decimals: 0 },
   { id: "unison-count", param: "unison.count", readoutId: "unison-count-readout", suffix: "", decimals: 0 },
   { id: "analog-instability", param: "analog.instability", readoutId: "analog-instability-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
+  { id: "drive-compensation", param: "drive.compensation", readoutId: "drive-compensation-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
   { id: "osc1-detune", param: "osc1.detune", readoutId: "osc1-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc2-detune", param: "osc2.detune", readoutId: "osc2-detune-readout", suffix: " ct", decimals: 0 },
   { id: "osc3-detune", param: "osc3.detune", readoutId: "osc3-detune-readout", suffix: " ct", decimals: 0 },
@@ -130,6 +141,18 @@ function injectVoicePanel() {
         <div class="knob-value" id="analog-drift-readout">18%</div>
       </div>
     </div>
+    <div class="knob-pair" style="margin-bottom: 12px;">
+      <div class="knob" data-param="drive.voice">
+        <canvas class="bg" width="140" height="140"></canvas>
+        <canvas class="fg" width="140" height="140"></canvas>
+        <div class="knob-value" id="voice-drive-readout">22%</div>
+      </div>
+      <div class="knob" data-param="drive.master">
+        <canvas class="bg" width="140" height="140"></canvas>
+        <canvas class="fg" width="140" height="140"></canvas>
+        <div class="knob-value" id="master-drive-readout">16%</div>
+      </div>
+    </div>
     <div class="param-list">
       <div class="param">
         <label for="voice-count">Polyphony</label>
@@ -149,7 +172,13 @@ function injectVoicePanel() {
       </div>
       <div class="status" id="analog-instability-readout">12%</div>
 
-      <div class="status">Spread thickens the stack. Drift and instability add slow pitch, filter and stereo motion.</div>
+      <div class="param">
+        <label for="drive-compensation">Drive Compensation</label>
+        <input id="drive-compensation" type="range" min="0" max="1" step="0.01" value="0.72" />
+      </div>
+      <div class="status" id="drive-compensation-readout">72%</div>
+
+      <div class="status">Spread thickens the stack. Drift and instability add motion. Voice and master drive add analog saturation with level compensation.</div>
     </div>
   `;
 
@@ -178,6 +207,7 @@ function createInitialState() {
       "voice-count": 8,
       "unison-count": 1,
       "analog-instability": 0.12,
+      "drive-compensation": 0.72,
       "osc1-detune": 0,
       "osc2-detune": -7,
       "osc3-detune": 7,
@@ -212,9 +242,12 @@ function createBuiltinPresets() {
   warm.knobs["delay.mix"] = 0.12;
   warm.knobs["unison.spread"] = 0.28;
   warm.knobs["analog.drift"] = 0.14;
+  warm.knobs["drive.voice"] = 0.18;
+  warm.knobs["drive.master"] = 0.12;
   warm.sliders["voice-count"] = 6;
   warm.sliders["unison-count"] = 2;
   warm.sliders["analog-instability"] = 0.08;
+  warm.sliders["drive-compensation"] = 0.78;
   warm.sliders["env-attack"] = 0.22;
   warm.sliders["env-decay"] = 0.85;
   warm.sliders["env-sustain"] = 0.78;
@@ -230,9 +263,12 @@ function createBuiltinPresets() {
   bright.knobs["reverb.mix"] = 0.18;
   bright.knobs["unison.spread"] = 0.45;
   bright.knobs["analog.drift"] = 0.11;
+  bright.knobs["drive.voice"] = 0.26;
+  bright.knobs["drive.master"] = 0.20;
   bright.sliders["voice-count"] = 8;
   bright.sliders["unison-count"] = 2;
   bright.sliders["analog-instability"] = 0.18;
+  bright.sliders["drive-compensation"] = 0.70;
   bright.sliders["delay-feedback"] = 0.48;
   bright.sliders["chorus-rate"] = 1.7;
   bright.routes[0] = { source: "lfo", dest: "osc1.detune", amount: 0.28 };
@@ -252,11 +288,14 @@ function createBuiltinPresets() {
   drone.knobs["macro2.value"] = 0.35;
   drone.knobs["unison.spread"] = 0.55;
   drone.knobs["analog.drift"] = 0.34;
+  drone.knobs["drive.voice"] = 0.34;
+  drone.knobs["drive.master"] = 0.24;
   drone.selects["osc2-wave"] = "triangle";
   drone.selects["osc3-wave"] = "square";
   drone.sliders["voice-count"] = 8;
   drone.sliders["unison-count"] = 3;
   drone.sliders["analog-instability"] = 0.24;
+  drone.sliders["drive-compensation"] = 0.82;
   drone.sliders["env-attack"] = 0.6;
   drone.sliders["env-decay"] = 1.6;
   drone.sliders["env-sustain"] = 0.9;
