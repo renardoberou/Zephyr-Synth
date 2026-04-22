@@ -1,6 +1,6 @@
-import { Synth } from "./src/synth.js?v=11";
-import { UIEngine } from "./src/ui/uiEngine.js?v=11";
-import { KnobRenderer } from "./src/ui/knobRenderer.js?v=11";
+import { Synth } from "./src/synth.js?v=12";
+import { UIEngine } from "./src/ui/uiEngine.js?v=12";
+import { KnobRenderer } from "./src/ui/knobRenderer.js?v=12";
 
 const STORAGE_KEY = "zephyr-synth-presets-v1";
 
@@ -126,6 +126,12 @@ const sliderBindings = [
   { id: "osc3-detune", param: "osc3.detune", readoutId: "osc3-detune-readout", suffix: " ct", decimals: 0 },
   { id: "filter-resonance", param: "filter.resonance", readoutId: "filter-resonance-readout", suffix: "", decimals: 1 },
   { id: "filter2-resonance", param: "filter2.resonance", readoutId: "filter2-resonance-readout", suffix: "", decimals: 1 },
+  { id: "filter-keytrack", param: "filter.keytrack", readoutId: "filter-keytrack-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
+  { id: "filter2-keytrack", param: "filter2.keytrack", readoutId: "filter2-keytrack-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
+  { id: "hpf-keytrack", param: "hpf.keytrack", readoutId: "hpf-keytrack-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
+  { id: "filter-env-depth", param: "filter.envDepth", readoutId: "filter-env-depth-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
+  { id: "filter2-env-depth", param: "filter2.envDepth", readoutId: "filter2-env-depth-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
+  { id: "hpf-env-depth", param: "hpf.envDepth", readoutId: "hpf-env-depth-readout", suffix: "%", decimals: 0, transform: (v) => Math.round(v * 100) },
   { id: "env-attack", param: "env.attack", readoutId: "env-attack-readout", suffix: " s", decimals: 3 },
   { id: "env-decay", param: "env.decay", readoutId: "env-decay-readout", suffix: " s", decimals: 2 },
   { id: "env-sustain", param: "env.sustain", readoutId: "env-sustain-readout", suffix: "", decimals: 2 },
@@ -231,6 +237,12 @@ function createInitialState() {
       "osc3-detune": 7,
       "filter-resonance": 0.5,
       "filter2-resonance": 7.5,
+      "filter-keytrack": 0.35,
+      "filter2-keytrack": 0.20,
+      "hpf-keytrack": 0.0,
+      "filter-env-depth": 0.55,
+      "filter2-env-depth": 0.30,
+      "hpf-env-depth": 0.08,
       "env-attack": 0.01,
       "env-decay": 0.35,
       "env-sustain": 0.65,
@@ -272,6 +284,12 @@ function createBuiltinPresets() {
   warm.sliders["analog-instability"] = 0.08;
   warm.sliders["drive-compensation"] = 0.78;
   warm.sliders["filter2-resonance"] = 5.5;
+  warm.sliders["filter-keytrack"] = 0.30;
+  warm.sliders["filter2-keytrack"] = 0.18;
+  warm.sliders["hpf-keytrack"] = 0.02;
+  warm.sliders["filter-env-depth"] = 0.62;
+  warm.sliders["filter2-env-depth"] = 0.24;
+  warm.sliders["hpf-env-depth"] = 0.04;
   warm.sliders["env-attack"] = 0.22;
   warm.sliders["env-decay"] = 0.85;
   warm.sliders["env-sustain"] = 0.78;
@@ -298,11 +316,17 @@ function createBuiltinPresets() {
   bright.sliders["analog-instability"] = 0.18;
   bright.sliders["drive-compensation"] = 0.70;
   bright.sliders["filter2-resonance"] = 9.5;
+  bright.sliders["filter-keytrack"] = 0.58;
+  bright.sliders["filter2-keytrack"] = 0.42;
+  bright.sliders["hpf-keytrack"] = 0.18;
+  bright.sliders["filter-env-depth"] = 0.34;
+  bright.sliders["filter2-env-depth"] = 0.42;
+  bright.sliders["hpf-env-depth"] = 0.10;
   bright.sliders["delay-feedback"] = 0.48;
   bright.sliders["chorus-rate"] = 1.7;
   bright.routes[0] = { source: "lfo", dest: "osc1.detune", amount: 0.28 };
   bright.routes[1] = { source: "lfo", dest: "filter.cutoff", amount: 0.16 };
-  bright.routes[2] = { source: "macro1", dest: "filter.parallelBlend", amount: 0.0 };
+  bright.routes[2] = { source: "macro1", dest: "filter2.cutoff", amount: 0.22 };
   bright.routes[3] = { source: "macro2", dest: "reverb.mix", amount: 0.30 };
 
   const drone = structuredClone(init);
@@ -330,6 +354,12 @@ function createBuiltinPresets() {
   drone.sliders["analog-instability"] = 0.24;
   drone.sliders["drive-compensation"] = 0.82;
   drone.sliders["filter2-resonance"] = 12.0;
+  drone.sliders["filter-keytrack"] = 0.12;
+  drone.sliders["filter2-keytrack"] = 0.08;
+  drone.sliders["hpf-keytrack"] = 0.0;
+  drone.sliders["filter-env-depth"] = 0.20;
+  drone.sliders["filter2-env-depth"] = 0.32;
+  drone.sliders["hpf-env-depth"] = 0.06;
   drone.sliders["env-attack"] = 0.6;
   drone.sliders["env-decay"] = 1.6;
   drone.sliders["env-sustain"] = 0.9;
