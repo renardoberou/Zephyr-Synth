@@ -548,6 +548,8 @@ function buildKeyboard() {
     btn.type = "button";
     btn.textContent = note.name;
 
+    const noteId = `ui-${note.name}`;
+
     const start = async () => {
       if (ctx.state !== "running") {
         await ctx.resume();
@@ -557,12 +559,12 @@ function buildKeyboard() {
         }
         setStatus("Audio running");
       }
-      synth.noteOn(note.freq);
+      synth.noteOn(note.freq, noteId);
       btn.classList.add("active");
     };
 
     const stop = () => {
-      synth.noteOff();
+      synth.noteOff(noteId);
       btn.classList.remove("active");
     };
 
