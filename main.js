@@ -1,6 +1,6 @@
-import { Synth } from "./src/synth.js?v=13";
-import { UIEngine } from "./src/ui/uiEngine.js?v=13";
-import { KnobRenderer } from "./src/ui/knobRenderer.js?v=13";
+import { Synth } from "./src/synth.js?v=14";
+import { UIEngine } from "./src/ui/uiEngine.js?v=14";
+import { KnobRenderer } from "./src/ui/knobRenderer.js?v=14";
 
 const STORAGE_KEY = "zephyr-synth-presets-v1";
 
@@ -640,6 +640,48 @@ function renderExpressionStage() {
   if (bendEl) bendEl.textContent = `${Math.round(primary.bend * 100)}%`;
 }
 
+function getRouteSourceSnapshot() {
+  const voices = getVoiceSnapshots();
+  const lfo = Math.sin(ctx.currentTime * Math.PI * 2 * synth.baseValues.lfoRate);
+  const maxEnv = voices.reduce((max, voice) => Math.max(max, voice.env), 0);
+  const maxVelocity = voices.reduce((max, voice) => Math.max(max, voice.velocity), 0);
+  const maxPressure = voices.reduce((max, voice) => Math.max(max, voice.pressure), 0);
+  const maxTimbre = voices.reduce((max, voice) => Math.max(max, voice.timbre), 0);
+  const bendByMagnitude = voices.reduce((best, voice) => (Math.abs(voice.bend) > Math.abs(best) ? voice.bend : best), 0);
+
+  return {
+    env: maxEnv,
+    lfo,
+    velocity: maxVelocity,
+    pressure: maxPressure,
+    timbre: maxTimbre,
+    bend: bendByMagnitude,
+    macro1: synth.baseValues.macro1,
+    macro2: synth.baseValues.macro2,
+  };
+}
+
+function renderModMatrixDebug() {
+  const sources = getRouteSourceSnapshot();
+
+  for (let i = 0; i < 4; i++) {
+    const route = synth.routes[i];
+    const row = byId(`route-${i}-row`);
+    const meter = byId(`route-${i}-meter-fill`);
+    const state = byId(`route-${i}-state`);
+    if (!route || !row || !meter || !state) continue;
+
+    const sourceValue = Number(sources[route.source] ?? 0);
+    const actual = sourceValue * Number(route.amount ?? 0);
+    const magnitude = clamp(Math.abs(actual), 0, 1);
+
+    meter.style.width = `${magnitude * 100}%`;
+    state.textContent = `Src ${sourceValue.toFixed(2)} · Act ${actual.toFixed(2)}`;
+    row.classList.toggle("active", magnitude > 0.03);
+    row.classList.toggle("negative", actual < -0.03);
+  }
+}
+
 function buildKeyboard() {
   const keysEl = byId("keys");
   if (!keysEl) return;
@@ -883,6 +925,7 @@ async function boot() {
       synth.tick();
       ui.frame();
       renderExpressionStage();
+      renderModMatrixDebug();
     } catch (err) {
       console.error(err);
       setStatus("Runtime error");
