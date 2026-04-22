@@ -535,17 +535,26 @@ export class Synth {
     const now = this.ctx.currentTime;
     const lfo = Math.sin(now * Math.PI * 2 * this.baseValues.lfoRate);
     let maxEnv = 0;
+    const aggregate = { velocity: 0, pressure: 0, timbre: 0, bend: 0 };
+
     for (const voice of this.voices) {
       if (!voice.isActive && voice.env.stage === "idle") continue;
       this.updateVoiceEnvelope(voice, now);
       this.applyVoiceModMatrix(voice, now, lfo);
       if (voice.env.value > maxEnv) maxEnv = voice.env.value;
+      aggregate.velocity = Math.max(aggregate.velocity, voice.expression.velocity ?? 0);
+      aggregate.pressure = Math.max(aggregate.pressure, voice.expression.pressure ?? 0);
+      aggregate.timbre = Math.max(aggregate.timbre, voice.expression.timbre ?? 0);
+      if (Math.abs(voice.expression.bend ?? 0) > Math.abs(aggregate.bend)) {
+        aggregate.bend = voice.expression.bend ?? 0;
+      }
       if (voice.env.stage === "idle" && !voice.isActive) {
         voice.amp.gain.setValueAtTime(0, now);
         voice.postAmpMod.gain.setValueAtTime(1, now);
       }
     }
-    this.applyGlobalFxModMatrix(now, lfo, maxEnv);
+
+    this.applyGlobalFxModMatrix(now, lfo, maxEnv, aggregate);
   }
 
   updateVoiceEnvelope(voice, now) {
@@ -612,6 +621,8 @@ export class Synth {
       "filter2.cutoff": 0,
       "hpf.cutoff": 0,
       "amp.level": 0,
+      "pan.position": 0,
+      "voice.drive": 0,
     };
 
     for (const route of this.routes) {
@@ -647,10 +658,14 @@ export class Synth {
     this.applyVoiceFilterSettings(voice, now, finalCutoff1, finalCutoff2, finalHpf);
 
     const panWobble = (voice.randomPanSeed * this.baseValues.analogInstability * 0.08) + (Math.sin((now * Math.PI * 2 * voice.driftRate * 0.41) + voice.driftPhase) * this.baseValues.analogDrift * 0.04);
-    voice.panner.pan.setValueAtTime(this.clamp(voice.basePan + panWobble, -1, 1), now);
+    const finalPan = this.clamp(voice.basePan + panWobble + sums["pan.position"], -1, 1);
+    voice.panner.pan.setValueAtTime(finalPan, now);
 
     const finalAmpMod = this.clamp(1 + sums["amp.level"], 0, 1.5);
     voice.postAmpMod.gain.setValueAtTime(finalAmpMod, now);
+
+    const finalVoiceDrive = this.clamp(this.baseValues.voiceDrive + sums["voice.drive"], 0, 1);
+    this.applyDriveAmountToVoice(voice, now, finalVoiceDrive);
   }
 
   applyVoiceFilterSettings(voice, time, cutoff1, cutoff2, hpfCutoff) {
@@ -677,17 +692,48 @@ export class Synth {
     voice.hpf.Q.setValueAtTime(0.7, time);
   }
 
-  applyGlobalFxModMatrix(now, lfo, envValue) {
-    const sources = { lfo, env: envValue, macro1: this.baseValues.macro1, macro2: this.baseValues.macro2 };
-    const sums = { "chorus.mix": 0, "delay.mix": 0, "reverb.mix": 0 };
+  applyGlobalFxModMatrix(now, lfo, envValue, aggregate = { velocity: 0, pressure: 0, timbre: 0, bend: 0 }) {
+    const sources = {
+      lfo,
+      env: envValue,
+      macro1: this.baseValues.macro1,
+      macro2: this.baseValues.macro2,
+      velocity: aggregate.velocity ?? 0,
+      pressure: aggregate.pressure ?? 0,
+      timbre: aggregate.timbre ?? 0,
+      bend: aggregate.bend ?? 0,
+    };
+    const sums = {
+      "chorus.mix": 0,
+      "delay.mix": 0,
+      "reverb.mix": 0,
+      "chorus.rate": 0,
+      "delay.feedback": 0,
+      "drive.master": 0,
+      "filter.parallelBlend": 0,
+    };
+
     for (const route of this.routes) {
       if (!(route.dest in sums)) continue;
       const sourceValue = sources[route.source] ?? 0;
       sums[route.dest] += sourceValue * (route.amount ?? 0) * this.getDestinationScale(route.dest);
     }
+
     this.setChorusMix(this.clamp(this.baseValues.chorusMix + sums["chorus.mix"], 0, 1));
     this.setDelayMix(this.clamp(this.baseValues.delayMix + sums["delay.mix"], 0, 1));
     this.setReverbMix(this.clamp(this.baseValues.reverbMix + sums["reverb.mix"], 0, 1));
+
+    const finalChorusRate = this.clamp(this.baseValues.chorusRate + sums["chorus.rate"], 0.05, 12);
+    this.chorusLFO.frequency.setValueAtTime(finalChorusRate, now);
+
+    const finalDelayFeedback = this.clamp(this.baseValues.delayFeedback + sums["delay.feedback"], 0, 0.98);
+    this.delayFeedbackGain.gain.setValueAtTime(finalDelayFeedback, now);
+
+    const finalMasterDrive = this.clamp(this.baseValues.masterDrive + sums["drive.master"], 0, 1);
+    this.applyMasterDriveAmount(now, finalMasterDrive);
+
+    const finalParallelBlend = this.clamp(this.baseValues.filterParallelBlend + sums["filter.parallelBlend"], 0, 1);
+    this.updateAllVoiceRoutingSettings(now, finalParallelBlend);
   }
 
   getDestinationScale(dest) {
@@ -703,10 +749,22 @@ export class Synth {
         return 900;
       case "amp.level":
         return 0.8;
+      case "pan.position":
+        return 0.85;
+      case "voice.drive":
+        return 0.45;
       case "chorus.mix":
       case "delay.mix":
       case "reverb.mix":
         return 0.7;
+      case "chorus.rate":
+        return 2.5;
+      case "delay.feedback":
+        return 0.45;
+      case "drive.master":
+        return 0.4;
+      case "filter.parallelBlend":
+        return 0.6;
       default:
         return 1;
     }
@@ -804,36 +862,44 @@ export class Synth {
     }
   }
 
-  updateSingleVoiceRoutingSettings(voice, time) {
+  updateSingleVoiceRoutingSettings(voice, time, blend = this.baseValues.filterParallelBlend) {
     const isParallel = this.baseValues.filterRoutingMode === "parallel";
     voice.serialModeGain.gain.setValueAtTime(isParallel ? 0 : 1, time);
     voice.parallelModeGain.gain.setValueAtTime(isParallel ? 1 : 0, time);
-    voice.parallelLpf1Gain.gain.setValueAtTime(1 - this.baseValues.filterParallelBlend, time);
-    voice.parallelLpf2Gain.gain.setValueAtTime(this.baseValues.filterParallelBlend, time);
+    voice.parallelLpf1Gain.gain.setValueAtTime(1 - blend, time);
+    voice.parallelLpf2Gain.gain.setValueAtTime(blend, time);
   }
 
-  updateAllVoiceRoutingSettings(time) {
-    this.voices.forEach((voice) => this.updateSingleVoiceRoutingSettings(voice, time));
+  updateAllVoiceRoutingSettings(time, blend = this.baseValues.filterParallelBlend) {
+    this.voices.forEach((voice) => this.updateSingleVoiceRoutingSettings(voice, time, blend));
+  }
+
+  applyDriveAmountToVoice(voice, time, driveNorm) {
+    const driveAmount = 1 + (driveNorm * 8.5);
+    const compensation = this.clamp(1 - (driveNorm * this.baseValues.driveCompensation * 0.78), 0.18, 1);
+    voice.driveGain.gain.setValueAtTime(driveAmount, time);
+    voice.driveShaper.curve = this.createDriveCurve(1.4 + (driveNorm * 5.5));
+    voice.driveCompGain.gain.setValueAtTime(compensation, time);
   }
 
   updateSingleVoiceDriveSettings(voice, time) {
-    const driveAmount = 1 + (this.baseValues.voiceDrive * 8.5);
-    const compensation = this.clamp(1 - (this.baseValues.voiceDrive * this.baseValues.driveCompensation * 0.78), 0.18, 1);
-    voice.driveGain.gain.setValueAtTime(driveAmount, time);
-    voice.driveShaper.curve = this.createDriveCurve(1.4 + (this.baseValues.voiceDrive * 5.5));
-    voice.driveCompGain.gain.setValueAtTime(compensation, time);
+    this.applyDriveAmountToVoice(voice, time, this.baseValues.voiceDrive);
   }
 
   updateAllVoiceDriveSettings(time) {
     this.voices.forEach((voice) => this.updateSingleVoiceDriveSettings(voice, time));
   }
 
-  updateMasterDriveSettings(time) {
-    const driveAmount = 1 + (this.baseValues.masterDrive * 6.5);
-    const compensation = this.clamp(1 - (this.baseValues.masterDrive * 0.52), 0.32, 1);
+  applyMasterDriveAmount(time, driveNorm) {
+    const driveAmount = 1 + (driveNorm * 6.5);
+    const compensation = this.clamp(1 - (driveNorm * 0.52), 0.32, 1);
     this.masterDriveGain.gain.setValueAtTime(driveAmount, time);
-    this.masterSaturator.curve = this.createDriveCurve(1.3 + (this.baseValues.masterDrive * 4.5));
+    this.masterSaturator.curve = this.createDriveCurve(1.3 + (driveNorm * 4.5));
     this.masterCompGain.gain.setValueAtTime(compensation, time);
+  }
+
+  updateMasterDriveSettings(time) {
+    this.applyMasterDriveAmount(time, this.baseValues.masterDrive);
   }
 
   setVoiceFrequency(voice, freq, time) {
