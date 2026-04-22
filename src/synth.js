@@ -1,9 +1,10 @@
-import { MPE } from "./mpe.js?v=7";
+import { MPE } from "./mpe.js?v=8";
 
 export class Synth {
   constructor(ctx) {
     this.ctx = ctx;
     this.mpe = new MPE(this);
+    this.pitchBendRangeSemitones = 2;
     this.master = null;
     this.masterInput = null;
     this.masterDriveGain = null;
@@ -210,6 +211,13 @@ export class Synth {
       randomPanSeed: 0,
       driftPhase: 0,
       driftRate: 0.1,
+      expression: {
+        channel: null,
+        velocity: 1,
+        pressure: 0,
+        timbre: 0,
+        bend: 0,
+      },
       panner,
       voiceMix,
       driveGain,
@@ -510,6 +518,19 @@ export class Synth {
     this.routes[index] = { ...this.routes[index], ...patch };
   }
 
+  updateNoteExpression(noteId, updates = {}) {
+    for (const voice of this.voices) {
+      if (!voice.isActive) continue;
+      if (voice.groupId !== noteId && voice.noteId !== noteId) continue;
+
+      if (updates.channel !== undefined) voice.expression.channel = updates.channel;
+      if (updates.velocity !== undefined) voice.expression.velocity = this.clamp(updates.velocity, 0, 1);
+      if (updates.pressure !== undefined) voice.expression.pressure = this.clamp(updates.pressure, 0, 1);
+      if (updates.timbre !== undefined) voice.expression.timbre = this.clamp(updates.timbre, 0, 1);
+      if (updates.bend !== undefined) voice.expression.bend = this.clamp(updates.bend, -1, 1);
+    }
+  }
+
   tick() {
     const now = this.ctx.currentTime;
     const lfo = Math.sin(now * Math.PI * 2 * this.baseValues.lfoRate);
@@ -565,11 +586,24 @@ export class Synth {
         voice.groupId = null;
       }
     }
-    voice.amp.gain.setValueAtTime(env.value, now);
+    voice.amp.gain.setValueAtTime(env.value * this.getVelocityGain(voice.expression.velocity), now);
   }
 
   applyVoiceModMatrix(voice, now, lfo) {
-    const sources = { lfo, env: voice.env.value, macro1: this.baseValues.macro1, macro2: this.baseValues.macro2 };
+    const bend = this.clamp(voice.expression.bend ?? 0, -1, 1);
+    const playedFrequency = voice.frequency * Math.pow(2, (bend * this.pitchBendRangeSemitones) / 12);
+    this.setVoiceFrequency(voice, playedFrequency, now);
+
+    const sources = {
+      lfo,
+      env: voice.env.value,
+      macro1: this.baseValues.macro1,
+      macro2: this.baseValues.macro2,
+      velocity: voice.expression.velocity ?? 1,
+      pressure: voice.expression.pressure ?? 0,
+      timbre: voice.expression.timbre ?? 0,
+      bend,
+    };
     const sums = {
       "osc1.detune": 0,
       "osc2.detune": 0,
@@ -596,7 +630,7 @@ export class Synth {
 
     const filterDrift = Math.sin((now * Math.PI * 2 * voice.driftRate * 0.63) + (voice.driftPhase * 0.71)) * this.baseValues.analogDrift * 220;
     const filterSlop = voice.randomFilterSeed * this.baseValues.analogInstability * 180;
-    const noteSemitoneOffset = this.getNoteSemitoneOffset(voice.frequency);
+    const noteSemitoneOffset = this.getNoteSemitoneOffset(playedFrequency);
 
     const trackedCutoff1 = this.baseValues.filterCutoff * Math.pow(2, (noteSemitoneOffset * this.baseValues.filterKeytrack) / 12);
     const trackedCutoff2 = this.baseValues.filter2Cutoff * Math.pow(2, (noteSemitoneOffset * this.baseValues.filter2Keytrack) / 12);
@@ -678,7 +712,7 @@ export class Synth {
     }
   }
 
-  noteOn(freq, noteId = `note-${freq}`) {
+  noteOn(freq, noteId = `note-${freq}`, options = {}) {
     const now = this.ctx.currentTime;
     const stackSize = this.getCurrentUnisonCount();
     for (let i = 0; i < stackSize; i++) {
@@ -694,6 +728,13 @@ export class Synth {
       voice.stackSize = stackSize;
       voice.unisonDetuneCents = this.getUnisonDetune(i, stackSize);
       voice.basePan = this.getUnisonPan(i, stackSize);
+      voice.expression = {
+        channel: options.channel ?? null,
+        velocity: this.clamp(options.velocity ?? 1, 0, 1),
+        pressure: this.clamp(options.pressure ?? 0, 0, 1),
+        timbre: this.clamp(options.timbre ?? 0, 0, 1),
+        bend: this.clamp(options.bend ?? 0, -1, 1),
+      };
       this.refreshVoiceAnalogProfile(voice);
       voice.panner.pan.setValueAtTime(voice.basePan, now);
       this.updateSingleVoiceDriveSettings(voice, now);
@@ -826,6 +867,10 @@ export class Synth {
   setReverbMix(mix) {
     this.reverbBypassGain.gain.setValueAtTime(1 - mix, this.ctx.currentTime);
     this.reverbWetGain.gain.setValueAtTime(mix, this.ctx.currentTime);
+  }
+
+  getVelocityGain(velocity) {
+    return 0.35 + (this.clamp(velocity, 0, 1) * 0.65);
   }
 
   getNoteSemitoneOffset(freq) {
