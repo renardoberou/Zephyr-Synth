@@ -5,6 +5,7 @@ export class MPE {
   constructor(synth) {
     this.synth = synth;
     this.channels = new Map();
+    this.noteSerial = 0;
   }
 
   ensureChannelState(channel) {
@@ -17,32 +18,85 @@ export class MPE {
         pressure: 0,
         timbre: 0,
         bend: 0,
+        activeNotes: new Map(),
+        noteStacks: new Map(),
       });
     }
     return this.channels.get(channel);
   }
 
-  pushExpressionUpdate(channel, updates) {
-    const state = this.ensureChannelState(channel);
-    Object.assign(state, updates);
-    if (state.noteId) {
-      this.synth.updateNoteExpression(state.noteId, updates);
+  getActiveNoteIds(state, noteNumber = null) {
+    if (noteNumber === null || noteNumber === undefined) {
+      return Array.from(state.activeNotes.keys());
     }
+    return [...(state.noteStacks.get(noteNumber) ?? [])];
   }
 
-  handleNoteOff(channel, noteNumber) {
+  pushChannelExpressionUpdate(channel, updates) {
     const state = this.ensureChannelState(channel);
-    const noteId = state.noteId ?? `midi-${channel}-${noteNumber}`;
-    this.synth.noteOff(noteId);
+    Object.assign(state, updates);
+    this.getActiveNoteIds(state).forEach((noteId) => {
+      this.synth.updateNoteExpression(noteId, updates);
+    });
+  }
 
-    if (state.noteNumber === noteNumber) {
+  pushNoteExpressionUpdate(channel, noteNumber, updates) {
+    const state = this.ensureChannelState(channel);
+    this.getActiveNoteIds(state, noteNumber).forEach((noteId) => {
+      this.synth.updateNoteExpression(noteId, updates);
+    });
+  }
+
+  refreshPrimaryNoteState(state) {
+    const last = Array.from(state.activeNotes.entries()).at(-1) ?? null;
+    if (!last) {
       state.noteId = null;
       state.noteNumber = null;
       state.baseFreq = 440;
       state.velocity = 1;
-      state.pressure = 0;
-      state.timbre = 0;
+      return;
     }
+    const [noteId, meta] = last;
+    state.noteId = noteId;
+    state.noteNumber = meta.noteNumber;
+    state.baseFreq = meta.baseFreq;
+    state.velocity = meta.velocity;
+  }
+
+  handleNoteOn(channel, noteNumber, velocityByte) {
+    const state = this.ensureChannelState(channel);
+    const freq = 440 * Math.pow(2, (noteNumber - 69) / 12);
+    const velocity = velocityByte / 127;
+    const noteId = `midi-${channel}-${noteNumber}-${++this.noteSerial}`;
+
+    if (!state.noteStacks.has(noteNumber)) state.noteStacks.set(noteNumber, []);
+    state.noteStacks.get(noteNumber).push(noteId);
+    state.activeNotes.set(noteId, { noteNumber, baseFreq: freq, velocity });
+    state.noteId = noteId;
+    state.noteNumber = noteNumber;
+    state.baseFreq = freq;
+    state.velocity = velocity;
+
+    this.synth.noteOn(freq, noteId, {
+      channel,
+      velocity,
+      pressure: state.pressure,
+      timbre: state.timbre,
+      bend: state.bend,
+    });
+  }
+
+  handleNoteOff(channel, noteNumber) {
+    const state = this.ensureChannelState(channel);
+    const stack = state.noteStacks.get(noteNumber);
+    const noteId = stack?.pop() ?? null;
+    if (!noteId) return;
+
+    this.synth.noteOff(noteId);
+    state.activeNotes.delete(noteId);
+
+    if (stack.length === 0) state.noteStacks.delete(noteNumber);
+    this.refreshPrimaryNoteState(state);
   }
 
   /**
@@ -54,27 +108,7 @@ export class MPE {
     const channel = status & 0x0f;
 
     if (type === 0x90 && data2 > 0) {
-      const state = this.ensureChannelState(channel);
-      if (state.noteId && state.noteNumber !== data1) {
-        this.synth.noteOff(state.noteId);
-      }
-
-      const noteId = `midi-${channel}-${data1}`;
-      const freq = 440 * Math.pow(2, (data1 - 69) / 12);
-      const velocity = data2 / 127;
-
-      state.noteId = noteId;
-      state.noteNumber = data1;
-      state.baseFreq = freq;
-      state.velocity = velocity;
-
-      this.synth.noteOn(freq, noteId, {
-        channel,
-        velocity,
-        pressure: state.pressure,
-        timbre: state.timbre,
-        bend: state.bend,
-      });
+      this.handleNoteOn(channel, data1, data2);
       return;
     }
 
@@ -84,27 +118,24 @@ export class MPE {
     }
 
     if (type === 0xa0) {
-      const state = this.ensureChannelState(channel);
-      if (state.noteNumber === data1) {
-        this.pushExpressionUpdate(channel, { pressure: data2 / 127 });
-      }
+      this.pushNoteExpressionUpdate(channel, data1, { pressure: data2 / 127 });
       return;
     }
 
     if (type === 0xd0) {
-      this.pushExpressionUpdate(channel, { pressure: data1 / 127 });
+      this.pushChannelExpressionUpdate(channel, { pressure: data1 / 127 });
       return;
     }
 
     if (type === 0xb0 && data1 === 74) {
-      this.pushExpressionUpdate(channel, { timbre: data2 / 127 });
+      this.pushChannelExpressionUpdate(channel, { timbre: data2 / 127 });
       return;
     }
 
     if (type === 0xe0) {
       const value14 = data1 | (data2 << 7);
       const bend = Math.max(-1, Math.min(1, (value14 - 8192) / 8192));
-      this.pushExpressionUpdate(channel, { bend });
+      this.pushChannelExpressionUpdate(channel, { bend });
     }
   }
 }
