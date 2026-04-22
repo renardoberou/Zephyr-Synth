@@ -5,6 +5,10 @@ export class Synth {
     this.ctx = ctx;
     this.mpe = new MPE(this);
     this.master = null;
+    this.masterInput = null;
+    this.masterDriveGain = null;
+    this.masterSaturator = null;
+    this.masterCompGain = null;
     this.voiceBus = null;
     this.fxSendGain = null;
     this.dryGain = null;
@@ -52,6 +56,9 @@ export class Synth {
       unisonSpread: 0.35,
       analogDrift: 0.18,
       analogInstability: 0.12,
+      voiceDrive: 0.22,
+      driveCompensation: 0.72,
+      masterDrive: 0.16,
     };
     this.envSettings = { attack: 0.01, decay: 0.35, sustain: 0.65, release: 0.45 };
     this.routes = [
@@ -76,8 +83,10 @@ export class Synth {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.baseValues.masterGain;
     this.master.connect(this.ctx.destination);
+
     this.voiceBus = this.ctx.createGain();
     this.voiceBus.gain.value = 1.0;
+
     this.voices = [];
     for (let i = 0; i < this.voiceCount; i++) {
       this.voices.push(this.createVoice(i));
@@ -85,6 +94,12 @@ export class Synth {
   }
 
   createVoice(index) {
+    const voiceMix = this.ctx.createGain();
+    const driveGain = this.ctx.createGain();
+    const driveShaper = this.ctx.createWaveShaper();
+    driveShaper.oversample = "2x";
+    const driveCompGain = this.ctx.createGain();
+
     const filter = this.ctx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = this.baseValues.filterCutoff;
@@ -99,6 +114,10 @@ export class Synth {
     const panner = this.ctx.createStereoPanner();
     panner.pan.value = 0;
 
+    voiceMix.connect(driveGain);
+    driveGain.connect(driveShaper);
+    driveShaper.connect(driveCompGain);
+    driveCompGain.connect(filter);
     filter.connect(amp);
     amp.connect(postAmpMod);
     postAmpMod.connect(panner);
@@ -120,9 +139,9 @@ export class Synth {
     osc2.connect(osc2Gain);
     osc3.connect(osc3Gain);
 
-    osc1Gain.connect(filter);
-    osc2Gain.connect(filter);
-    osc3Gain.connect(filter);
+    osc1Gain.connect(voiceMix);
+    osc2Gain.connect(voiceMix);
+    osc3Gain.connect(voiceMix);
 
     const voice = {
       index,
@@ -142,6 +161,10 @@ export class Synth {
       driftPhase: 0,
       driftRate: 0.1,
       panner,
+      voiceMix,
+      driveGain,
+      driveShaper,
+      driveCompGain,
       osc1,
       osc2,
       osc3,
@@ -155,6 +178,7 @@ export class Synth {
     };
 
     this.refreshVoiceAnalogProfile(voice);
+    this.updateSingleVoiceDriveSettings(voice, this.ctx.currentTime);
     this.applyWaveSettingsToVoice(voice, this.ctx.currentTime);
     this.applyCurrentDetunesToVoice(voice, this.ctx.currentTime);
     this.setVoiceFrequency(voice, this.baseFrequency, this.ctx.currentTime);
@@ -174,19 +198,36 @@ export class Synth {
     this.dryGain.gain.value = 1.0;
     this.fxSendGain = this.ctx.createGain();
     this.fxSendGain.gain.value = this.baseValues.fxSend;
+
+    this.masterInput = this.ctx.createGain();
+    this.masterInput.gain.value = 1.0;
+    this.masterDriveGain = this.ctx.createGain();
+    this.masterSaturator = this.ctx.createWaveShaper();
+    this.masterSaturator.oversample = "2x";
+    this.masterCompGain = this.ctx.createGain();
+
     this.voiceBus.connect(this.dryGain);
     this.voiceBus.connect(this.fxSendGain);
-    this.dryGain.connect(this.master);
+    this.dryGain.connect(this.masterInput);
+
     this.buildChorusSection();
     this.buildDelaySection();
     this.buildReverbSection();
+
     this.fxSendGain.connect(this.chorusDryGain);
     this.fxSendGain.connect(this.chorusDelay);
     this.chorusOut.connect(this.delayBypassGain);
     this.chorusOut.connect(this.delayNode);
     this.delayOut.connect(this.reverbBypassGain);
     this.delayOut.connect(this.reverbConvolver);
-    this.reverbOut.connect(this.master);
+    this.reverbOut.connect(this.masterInput);
+
+    this.masterInput.connect(this.masterDriveGain);
+    this.masterDriveGain.connect(this.masterSaturator);
+    this.masterSaturator.connect(this.masterCompGain);
+    this.masterCompGain.connect(this.master);
+
+    this.updateMasterDriveSettings(this.ctx.currentTime);
   }
 
   buildChorusSection() {
@@ -221,7 +262,7 @@ export class Synth {
     this.delayTone.type = "lowpass";
     this.delayTone.frequency.value = 2200;
     this.delaySaturator = this.ctx.createWaveShaper();
-    this.delaySaturator.curve = this.createSaturatorCurve();
+    this.delaySaturator.curve = this.createDriveCurve(2.5);
     this.delaySaturator.oversample = "2x";
     this.setDelayMix(this.baseValues.delayMix);
     this.delayBypassGain.connect(this.delayOut);
@@ -289,6 +330,14 @@ export class Synth {
     this.params.set("analog.drift", (norm) => {
       this.baseValues.analogDrift = norm;
     });
+    this.params.set("drive.voice", (norm) => {
+      this.baseValues.voiceDrive = norm;
+      this.updateAllVoiceDriveSettings(this.ctx.currentTime);
+    });
+    this.params.set("drive.master", (norm) => {
+      this.baseValues.masterDrive = norm;
+      this.updateMasterDriveSettings(this.ctx.currentTime);
+    });
 
     this.discreteParams.set("osc1.wave", (value) => {
       this.baseWaves.osc1 = this.waveToIndex(value);
@@ -352,6 +401,10 @@ export class Synth {
     });
     this.discreteParams.set("analog.instability", (value) => {
       this.baseValues.analogInstability = value;
+    });
+    this.discreteParams.set("drive.compensation", (value) => {
+      this.baseValues.driveCompensation = value;
+      this.updateAllVoiceDriveSettings(this.ctx.currentTime);
     });
   }
 
@@ -503,6 +556,7 @@ export class Synth {
       voice.basePan = this.getUnisonPan(i, stackSize);
       this.refreshVoiceAnalogProfile(voice);
       voice.panner.pan.setValueAtTime(voice.basePan, now);
+      this.updateSingleVoiceDriveSettings(voice, now);
       this.setVoiceFrequency(voice, freq, now);
       this.applyWaveSettingsToVoice(voice, now);
       this.applyCurrentDetunesToVoice(voice, now);
@@ -568,6 +622,26 @@ export class Synth {
     }
   }
 
+  updateSingleVoiceDriveSettings(voice, time) {
+    const driveAmount = 1 + (this.baseValues.voiceDrive * 8.5);
+    const compensation = this.clamp(1 - (this.baseValues.voiceDrive * this.baseValues.driveCompensation * 0.78), 0.18, 1);
+    voice.driveGain.gain.setValueAtTime(driveAmount, time);
+    voice.driveShaper.curve = this.createDriveCurve(1.4 + (this.baseValues.voiceDrive * 5.5));
+    voice.driveCompGain.gain.setValueAtTime(compensation, time);
+  }
+
+  updateAllVoiceDriveSettings(time) {
+    this.voices.forEach((voice) => this.updateSingleVoiceDriveSettings(voice, time));
+  }
+
+  updateMasterDriveSettings(time) {
+    const driveAmount = 1 + (this.baseValues.masterDrive * 6.5);
+    const compensation = this.clamp(1 - (this.baseValues.masterDrive * 0.52), 0.32, 1);
+    this.masterDriveGain.gain.setValueAtTime(driveAmount, time);
+    this.masterSaturator.curve = this.createDriveCurve(1.3 + (this.baseValues.masterDrive * 4.5));
+    this.masterCompGain.gain.setValueAtTime(compensation, time);
+  }
+
   setVoiceFrequency(voice, freq, time) {
     voice.osc1.parameters.get("frequency").setValueAtTime(freq, time);
     voice.osc2.parameters.get("frequency").setValueAtTime(freq, time);
@@ -617,11 +691,11 @@ export class Synth {
     return Math.exp(minLog + norm * (maxLog - minLog));
   }
 
-  createSaturatorCurve() {
-    const curve = new Float32Array(1024);
-    for (let i = 0; i < 1024; i++) {
-      const x = (i / 512) - 1;
-      curve[i] = Math.tanh(x * 2.5);
+  createDriveCurve(amount = 2.5) {
+    const curve = new Float32Array(2048);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * amount);
     }
     return curve;
   }
