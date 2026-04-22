@@ -47,6 +47,9 @@ export class Synth {
       lfoRate: 3.0,
       macro1: 0.0,
       macro2: 0.0,
+      activeVoiceCount: 8,
+      unisonCount: 1,
+      unisonSpread: 0.35,
     };
     this.envSettings = { attack: 0.01, decay: 0.35, sustain: 0.65, release: 0.45 };
     this.routes = [
@@ -82,29 +85,65 @@ export class Synth {
     filter.type = "lowpass";
     filter.frequency.value = this.baseValues.filterCutoff;
     filter.Q.value = this.baseValues.filterResonance;
+
     const amp = this.ctx.createGain();
     amp.gain.value = 0;
+
     const postAmpMod = this.ctx.createGain();
     postAmpMod.gain.value = 1;
+
+    const panner = this.ctx.createStereoPanner();
+    panner.pan.value = 0;
+
     filter.connect(amp);
     amp.connect(postAmpMod);
-    postAmpMod.connect(this.voiceBus);
+    postAmpMod.connect(panner);
+    panner.connect(this.voiceBus);
+
     const osc1 = new AudioWorkletNode(this.ctx, "vco");
     const osc2 = new AudioWorkletNode(this.ctx, "vco");
     const osc3 = new AudioWorkletNode(this.ctx, "vco");
+
     const osc1Gain = this.ctx.createGain();
     const osc2Gain = this.ctx.createGain();
     const osc3Gain = this.ctx.createGain();
+
     osc1Gain.gain.value = this.baseOscGains.osc1;
     osc2Gain.gain.value = this.baseOscGains.osc2;
     osc3Gain.gain.value = this.baseOscGains.osc3;
-    osc1.connect(osc1Gain); osc2.connect(osc2Gain); osc3.connect(osc3Gain);
-    osc1Gain.connect(filter); osc2Gain.connect(filter); osc3Gain.connect(filter);
+
+    osc1.connect(osc1Gain);
+    osc2.connect(osc2Gain);
+    osc3.connect(osc3Gain);
+
+    osc1Gain.connect(filter);
+    osc2Gain.connect(filter);
+    osc3Gain.connect(filter);
+
     const voice = {
-      index, noteId: null, frequency: this.baseFrequency, isActive: false, startedAt: 0, lastEventAt: 0,
-      osc1, osc2, osc3, osc1Gain, osc2Gain, osc3Gain, filter, amp, postAmpMod,
+      index,
+      noteId: null,
+      groupId: null,
+      frequency: this.baseFrequency,
+      isActive: false,
+      startedAt: 0,
+      lastEventAt: 0,
+      stackIndex: 0,
+      stackSize: 1,
+      unisonDetuneCents: 0,
+      panner,
+      osc1,
+      osc2,
+      osc3,
+      osc1Gain,
+      osc2Gain,
+      osc3Gain,
+      filter,
+      amp,
+      postAmpMod,
       env: { value: 0, stage: "idle", stageStart: 0, stageStartValue: 0 },
     };
+
     this.applyWaveSettingsToVoice(voice, this.ctx.currentTime);
     this.applyCurrentDetunesToVoice(voice, this.ctx.currentTime);
     this.setVoiceFrequency(voice, this.baseFrequency, this.ctx.currentTime);
@@ -224,6 +263,10 @@ export class Synth {
       this.baseValues.reverbMix = norm;
       this.setReverbMix(norm);
     });
+    this.params.set("unison.spread", (norm) => {
+      this.baseValues.unisonSpread = norm;
+      this.updateAllVoiceUnisonPositions(this.ctx.currentTime);
+    });
 
     this.discreteParams.set("osc1.wave", (value) => {
       this.baseWaves.osc1 = this.waveToIndex(value);
@@ -271,6 +314,19 @@ export class Synth {
     this.discreteParams.set("reverb.decay", (value) => {
       this.baseValues.reverbDecay = value;
       this.reverbConvolver.buffer = this.createImpulseResponse(value);
+    });
+    this.discreteParams.set("voice.count", (value) => {
+      this.baseValues.activeVoiceCount = this.clamp(Math.round(value), 1, this.voiceCount);
+      const now = this.ctx.currentTime;
+      this.voices.forEach((voice) => {
+        if (voice.index >= this.baseValues.activeVoiceCount && voice.isActive) {
+          this.releaseVoice(voice, now);
+        }
+      });
+    });
+    this.discreteParams.set("unison.count", (value) => {
+      this.baseValues.unisonCount = this.clamp(Math.round(value), 1, 4);
+      this.updateAllVoiceUnisonPositions(this.ctx.currentTime);
     });
   }
 
@@ -341,6 +397,7 @@ export class Synth {
         env.value = 0;
         voice.isActive = false;
         voice.noteId = null;
+        voice.groupId = null;
       }
     }
     voice.amp.gain.setValueAtTime(env.value, now);
@@ -354,9 +411,9 @@ export class Synth {
       const sourceValue = sources[route.source] ?? 0;
       sums[route.dest] += sourceValue * (route.amount ?? 0) * this.getDestinationScale(route.dest);
     }
-    voice.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1 + sums["osc1.detune"], now);
-    voice.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2 + sums["osc2.detune"], now);
-    voice.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3 + sums["osc3.detune"], now);
+    voice.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1 + voice.unisonDetuneCents + sums["osc1.detune"], now);
+    voice.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2 + voice.unisonDetuneCents + sums["osc2.detune"], now);
+    voice.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3 + voice.unisonDetuneCents + sums["osc3.detune"], now);
     const finalCutoff = this.clamp(this.baseValues.filterCutoff + sums["filter.cutoff"], 40, 16000);
     voice.filter.frequency.setValueAtTime(finalCutoff, now);
     voice.filter.Q.setValueAtTime(this.baseValues.filterResonance, now);
@@ -393,18 +450,27 @@ export class Synth {
 
   noteOn(freq, noteId = `note-${freq}`) {
     const now = this.ctx.currentTime;
-    const voice = this.allocateVoice(noteId);
-    voice.noteId = noteId;
-    voice.frequency = freq;
-    voice.isActive = true;
-    voice.startedAt = now;
-    voice.lastEventAt = now;
-    this.setVoiceFrequency(voice, freq, now);
-    this.applyWaveSettingsToVoice(voice, now);
-    this.applyCurrentDetunesToVoice(voice, now);
-    voice.env.stage = "attack";
-    voice.env.stageStart = now;
-    voice.env.stageStartValue = voice.env.value;
+    const stackSize = this.getCurrentUnisonCount();
+    for (let i = 0; i < stackSize; i++) {
+      const internalNoteId = `${noteId}::${i}`;
+      const voice = this.allocateVoice(internalNoteId);
+      voice.noteId = internalNoteId;
+      voice.groupId = noteId;
+      voice.frequency = freq;
+      voice.isActive = true;
+      voice.startedAt = now;
+      voice.lastEventAt = now;
+      voice.stackIndex = i;
+      voice.stackSize = stackSize;
+      voice.unisonDetuneCents = this.getUnisonDetune(i, stackSize);
+      voice.panner.pan.setValueAtTime(this.getUnisonPan(i, stackSize), now);
+      this.setVoiceFrequency(voice, freq, now);
+      this.applyWaveSettingsToVoice(voice, now);
+      this.applyCurrentDetunesToVoice(voice, now);
+      voice.env.stage = "attack";
+      voice.env.stageStart = now;
+      voice.env.stageStartValue = voice.env.value;
+    }
   }
 
   noteOff(noteId = null) {
@@ -414,7 +480,7 @@ export class Synth {
       return;
     }
     for (const voice of this.voices) {
-      if (voice.isActive && voice.noteId === noteId) this.releaseVoice(voice, now);
+      if (voice.isActive && (voice.groupId === noteId || voice.noteId === noteId)) this.releaseVoice(voice, now);
     }
   }
 
@@ -426,11 +492,38 @@ export class Synth {
   }
 
   allocateVoice(noteId) {
-    const existing = this.voices.find((voice) => voice.isActive && voice.noteId === noteId);
+    const pool = this.voices.slice(0, this.baseValues.activeVoiceCount);
+    const existing = pool.find((voice) => voice.isActive && voice.noteId === noteId);
     if (existing) return existing;
-    const idle = this.voices.find((voice) => !voice.isActive && voice.env.stage === "idle");
+    const idle = pool.find((voice) => !voice.isActive && voice.env.stage === "idle");
     if (idle) return idle;
-    return this.voices.reduce((oldest, voice) => (!oldest || voice.startedAt < oldest.startedAt ? voice : oldest), null);
+    const releasing = pool.find((voice) => !voice.isActive);
+    if (releasing) return releasing;
+    return pool.reduce((oldest, voice) => (!oldest || voice.startedAt < oldest.startedAt ? voice : oldest), null);
+  }
+
+  getCurrentUnisonCount() {
+    return this.clamp(Math.round(this.baseValues.unisonCount), 1, Math.min(4, this.baseValues.activeVoiceCount));
+  }
+
+  getUnisonDetune(index, total) {
+    if (total <= 1) return 0;
+    const position = (index / (total - 1)) * 2 - 1;
+    return position * this.baseValues.unisonSpread * 35;
+  }
+
+  getUnisonPan(index, total) {
+    if (total <= 1) return 0;
+    const position = (index / (total - 1)) * 2 - 1;
+    return this.clamp(position * this.baseValues.unisonSpread, -1, 1);
+  }
+
+  updateAllVoiceUnisonPositions(time) {
+    for (const voice of this.voices) {
+      if (!voice.groupId) continue;
+      voice.unisonDetuneCents = this.getUnisonDetune(voice.stackIndex, voice.stackSize);
+      voice.panner.pan.setValueAtTime(this.getUnisonPan(voice.stackIndex, voice.stackSize), time);
+    }
   }
 
   setVoiceFrequency(voice, freq, time) {
@@ -446,9 +539,9 @@ export class Synth {
   }
 
   applyCurrentDetunesToVoice(voice, time) {
-    voice.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1, time);
-    voice.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2, time);
-    voice.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3, time);
+    voice.osc1.parameters.get("detune").setValueAtTime(this.baseDetune.osc1 + voice.unisonDetuneCents, time);
+    voice.osc2.parameters.get("detune").setValueAtTime(this.baseDetune.osc2 + voice.unisonDetuneCents, time);
+    voice.osc3.parameters.get("detune").setValueAtTime(this.baseDetune.osc3 + voice.unisonDetuneCents, time);
   }
 
   setChorusMix(mix) {
