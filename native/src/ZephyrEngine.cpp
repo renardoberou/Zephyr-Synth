@@ -36,7 +36,10 @@ bool ZephyrEngine::pushMidiEvent(const MidiEvent& event) noexcept {
 }
 
 bool ZephyrEngine::pushParameterMessage(const ParameterMessage& message) noexcept {
-  return parameterQueue_.push(message);
+  MidiEvent packed {};
+  packed.note = static_cast<std::uint8_t>(message.target);
+  packed.value = message.value;
+  return parameterQueue_.push(packed);
 }
 
 void ZephyrEngine::render(float* left, float* right, std::uint32_t numFrames) {
@@ -98,8 +101,11 @@ void ZephyrEngine::setParameters(const EngineParameters& parameters) noexcept {
 }
 
 void ZephyrEngine::drainParameterMessages() {
-  ParameterMessage message;
-  while (parameterQueue_.pop(message)) {
+  MidiEvent packed;
+  while (parameterQueue_.pop(packed)) {
+    ParameterMessage message {};
+    message.target = static_cast<ParameterTarget>(packed.note);
+    message.value = packed.value;
     applyParameterMessage(message);
   }
 }
@@ -166,6 +172,58 @@ void ZephyrEngine::applyParameterMessage(const ParameterMessage& message) noexce
       break;
     case ParameterTarget::FilterTimbreAmount:
       parameters_.voice.filterTimbreAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Filter2BaseCutoff:
+      parameters_.voice.filter2BaseCutoffHz = std::clamp(message.value, 20.0f, 18000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Filter2EnvelopeAmount:
+      parameters_.voice.filter2EnvelopeAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Filter2PressureAmount:
+      parameters_.voice.filter2PressureAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Filter2TimbreAmount:
+      parameters_.voice.filter2TimbreAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::FilterRoutingBlend:
+      parameters_.voice.filterRoutingBlend = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::FilterRoutingMode:
+      parameters_.voice.filterRoutingMode = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::HighpassCutoff:
+      parameters_.voice.highpassCutoffHz = std::clamp(message.value, 20.0f, 4000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::LfoRate:
+      parameters_.voice.lfoRateHz = std::clamp(message.value, 0.01f, 40.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::LfoPitchAmount:
+      parameters_.voice.lfoPitchAmountSemitones = std::clamp(message.value, -24.0f, 24.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::LfoFilterAmount:
+      parameters_.voice.lfoFilterAmountHz = std::clamp(message.value, -12000.0f, 12000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Macro1Value:
+      parameters_.voice.macro1Value = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Macro1ToCutoff:
+      parameters_.voice.macro1ToCutoffHz = std::clamp(message.value, -12000.0f, 12000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Macro1ToDrive:
+      parameters_.voice.macro1ToDrive = std::clamp(message.value, -4.0f, 4.0f);
       applyParametersToVoices();
       break;
     case ParameterTarget::DriveAmount:
