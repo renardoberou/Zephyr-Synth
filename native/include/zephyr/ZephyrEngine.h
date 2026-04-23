@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "LockFreeMidiQueue.h"
+#include "ParameterMessage.h"
 #include "Voice.h"
 
 namespace zephyr {
@@ -25,6 +26,7 @@ public:
 
   void prepare(double sampleRate, std::uint32_t maxBlockSize);
   bool pushMidiEvent(const MidiEvent& event) noexcept;
+  bool pushParameterMessage(const ParameterMessage& message) noexcept;
 
   void render(float* left, float* right, std::uint32_t numFrames);
 
@@ -34,8 +36,16 @@ public:
   const EngineParameters& parameters() const noexcept { return parameters_; }
 
 private:
+  struct DeferredRelease {
+    std::uint8_t channel { 0 };
+    std::uint8_t note { 0 };
+  };
+
+  void drainParameterMessages();
+  void applyParameterMessage(const ParameterMessage& message) noexcept;
   void drainEvents(std::uint32_t numFrames);
   void handleEvent(const MidiEvent& event);
+  void releaseDeferredNotesForChannel(std::uint8_t channel) noexcept;
   void applyParametersToVoices() noexcept;
   Voice* allocateVoice() noexcept;
   Voice* findNewestMatchingVoice(std::uint8_t channel, std::uint8_t note) noexcept;
@@ -49,10 +59,13 @@ private:
   EngineParameters parameters_ {};
   std::array<Voice, kMaxVoices> voices_ {};
   LockFreeMidiQueue<2048> midiQueue_ {};
+  LockFreeMidiQueue<512> parameterQueue_ {};
   std::vector<MidiEvent> blockEvents_ {};
+  std::vector<DeferredRelease> deferredReleases_ {};
   std::array<float, 16> channelPitchBend_ {};
   std::array<float, 16> channelPressure_ {};
   std::array<float, 16> channelTimbre_ {};
+  std::array<bool, 16> channelSustainPedal_ {};
 };
 
 } // namespace zephyr
