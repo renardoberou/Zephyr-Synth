@@ -10,6 +10,12 @@
 
 namespace zephyr {
 
+struct EngineParameters {
+  float masterGain { 0.18f };
+  float pitchBendRangeSemitones { 2.0f };
+  VoiceParameters voice {};
+};
+
 class ZephyrEngine {
 public:
   static constexpr std::size_t kMaxVoices = 16;
@@ -23,11 +29,14 @@ public:
   void render(float* left, float* right, std::uint32_t numFrames);
 
   void setMasterGain(float gain) noexcept;
-  void setPitchBendRange(float semitones) noexcept { pitchBendRangeSemitones_ = semitones; }
+  void setPitchBendRange(float semitones) noexcept;
+  void setParameters(const EngineParameters& parameters) noexcept;
+  const EngineParameters& parameters() const noexcept { return parameters_; }
 
 private:
   void drainEvents(std::uint32_t numFrames);
   void handleEvent(const MidiEvent& event);
+  void applyParametersToVoices() noexcept;
   Voice* allocateVoice() noexcept;
   Voice* findNewestMatchingVoice(std::uint8_t channel, std::uint8_t note) noexcept;
 
@@ -37,6 +46,7 @@ private:
   float pitchBendRangeSemitones_ { 2.0f };
   std::uint64_t absoluteFrame_ { 0 };
 
+  EngineParameters parameters_ {};
   std::array<Voice, kMaxVoices> voices_ {};
   LockFreeMidiQueue<2048> midiQueue_ {};
   std::vector<MidiEvent> blockEvents_ {};
