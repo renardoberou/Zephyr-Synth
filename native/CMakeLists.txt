@@ -14,10 +14,12 @@ add_library(zephyr_engine STATIC
 target_include_directories(zephyr_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if(ANDROID)
+  find_package(oboe REQUIRED CONFIG)
+
   add_library(zephyr_android STATIC
     src/android/AndroidAudioEngine.cpp
   )
 
   target_include_directories(zephyr_android PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(zephyr_android PUBLIC zephyr_engine)
+  target_link_libraries(zephyr_android PUBLIC zephyr_engine oboe::oboe)
 endif()
