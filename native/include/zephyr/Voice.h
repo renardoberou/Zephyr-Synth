@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 namespace zephyr {
@@ -40,6 +41,7 @@ class Voice {
 public:
   void setSampleRate(double sampleRate) noexcept;
   void setMasterGain(float gain) noexcept { masterGain_ = gain; }
+  void setPitchBendRange(float semitones) noexcept { pitchBendRangeSemitones_ = semitones; }
 
   void start(std::uint8_t channel, std::uint8_t note, float frequency, float velocity, std::uint64_t frameIndex) noexcept;
   void release() noexcept;
@@ -59,6 +61,8 @@ public:
 
 private:
   float currentFrequency() const noexcept;
+  float renderOscillator(std::size_t index, float frequency) noexcept;
+  float updateLowpass(float input, float cutoffHz) noexcept;
   static constexpr float midiToFrequency(std::uint8_t note) noexcept;
 
   AdsrEnvelope envelope_ {};
@@ -69,9 +73,13 @@ private:
   float pressure_ { 0.0f };
   float timbre_ { 0.0f };
   float pitchBend_ { 0.0f };
+  float pitchBendRangeSemitones_ { 2.0f };
   float masterGain_ { 0.18f };
   double sampleRate_ { 48000.0 };
-  float phase_ { 0.0f };
+  std::array<float, 3> phases_ { 0.0f, 0.0f, 0.0f };
+  std::array<float, 3> detuneCents_ { 0.0f, -7.0f, 7.0f };
+  std::array<float, 3> oscillatorMix_ { 0.62f, 0.24f, 0.14f };
+  float filterState_ { 0.0f };
   bool active_ { false };
   bool releasing_ { false };
   std::uint64_t startFrame_ { 0 };
