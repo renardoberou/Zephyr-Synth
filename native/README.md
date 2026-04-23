@@ -13,42 +13,49 @@ The target architecture is:
 - **sample-accurate event handling inside render blocks**
 - **polyphonic voice allocation in the engine**
 - **UI demoted to control/observer layer only**
-- **Android audio backend via Oboe/AAudio in the next phase**
+- **Android audio backend via Oboe/AAudio**
 
-## What exists in this first native step
+## What exists now
 
 - `native/include/zephyr/MidiEvent.h`
   - timestampable MIDI/control events with `sampleOffset`
 - `native/include/zephyr/LockFreeMidiQueue.h`
   - fixed-size lock-free queue for control-thread or MIDI-thread -> audio-thread communication
+- `native/include/zephyr/MidiTranslator.h`
+  - converts raw MIDI bytes into engine events
 - `native/include/zephyr/Voice.h`
   - polyphonic voice object with per-voice ADSR and expression state
 - `native/include/zephyr/ZephyrEngine.h`
   - engine entry point for block rendering, event ingestion, and voice allocation
+- `native/include/zephyr/AndroidAudioEngine.h`
+  - Android-facing wrapper for the engine
+- `native/src/MidiTranslator.cpp`
+  - raw MIDI parsing for note, bend, pressure, timbre, and sustain events
 - `native/src/Voice.cpp`
   - simple voice implementation with oscillator + ADSR
 - `native/src/ZephyrEngine.cpp`
   - sample-accurate block renderer that consumes queued events inside the audio path
+- `native/src/android/AndroidAudioEngine.cpp`
+  - initial Oboe callback wrapper that feeds the engine inside the output callback
 - `native/CMakeLists.txt`
-  - initial static-library build target for the engine
+  - native engine target plus Android wrapper target
 
 ## Current scope
 
-This is the **engine scaffold**, not yet a complete Android app.
+This is still a **scaffold**, but it is now beyond a pure engine sketch.
 
-The oscillator and modulation are intentionally simple at this stage. The priority is to establish the correct **real-time architecture** before layering richer synthesis.
+Zephyr already has the correct high-level shape:
+- raw MIDI -> translator -> event queue -> audio callback -> sample-accurate render block
 
-## Next native steps
+The oscillator and modulation are intentionally simple. The priority remains establishing the correct **real-time architecture** before layering richer synthesis.
 
-1. Add Android standalone wrapper using **Oboe** with low-latency performance mode.
-2. Feed hardware MIDI into the engine queue and render in the callback.
-3. Add Zephyr voice architecture layers:
-   - multi-oscillator voice core
-   - filter block
-   - modulation matrix
-   - macro system
-4. Add preset serialization.
-5. Build native UI shell around the engine.
+## Immediate next steps
+
+1. Replace the simple sine/bright voice with the Zephyr multi-oscillator voice core.
+2. Add native filter stages in the voice path.
+3. Add channel-scoped and per-note modulation routing in the engine.
+4. Build Android app glue around the Oboe wrapper.
+5. Add preset serialization and parameter messaging from UI to engine.
 
 ## Design rule
 
