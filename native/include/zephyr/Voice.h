@@ -51,6 +51,8 @@ public:
   bool matches(std::uint8_t channel, std::uint8_t note) const noexcept;
   bool isActive() const noexcept { return active_; }
   bool isReleasing() const noexcept { return releasing_; }
+  std::uint8_t channel() const noexcept { return channel_; }
+  std::uint8_t note() const noexcept { return note_; }
   std::uint64_t startFrame() const noexcept { return startFrame_; }
 
   float renderSample() noexcept;
