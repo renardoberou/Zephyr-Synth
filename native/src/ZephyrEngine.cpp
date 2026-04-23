@@ -113,12 +113,7 @@ void ZephyrEngine::handleEvent(const MidiEvent& event) {
     case MidiEventType::PitchBend: {
       channelPitchBend_[channel] = std::clamp(event.value, -1.0f, 1.0f);
       for (auto& voice : voices_) {
-        if (voice.isActive() && voice.matches(event.channel, voice.matches(event.channel, event.note) ? event.note : 255)) {
-          voice.setPitchBend(channelPitchBend_[channel]);
-        }
-      }
-      for (auto& voice : voices_) {
-        if (voice.isActive() && !voice.isReleasing()) {
+        if (voice.isActive() && voice.channel() == event.channel) {
           voice.setPitchBend(channelPitchBend_[channel]);
         }
       }
@@ -127,7 +122,7 @@ void ZephyrEngine::handleEvent(const MidiEvent& event) {
     case MidiEventType::ChannelPressure: {
       channelPressure_[channel] = std::clamp(event.value, 0.0f, 1.0f);
       for (auto& voice : voices_) {
-        if (voice.isActive()) {
+        if (voice.isActive() && voice.channel() == event.channel) {
           voice.setPressure(channelPressure_[channel]);
         }
       }
@@ -136,7 +131,7 @@ void ZephyrEngine::handleEvent(const MidiEvent& event) {
     case MidiEventType::Timbre: {
       channelTimbre_[channel] = std::clamp(event.value, 0.0f, 1.0f);
       for (auto& voice : voices_) {
-        if (voice.isActive()) {
+        if (voice.isActive() && voice.channel() == event.channel) {
           voice.setTimbre(channelTimbre_[channel]);
         }
       }
