@@ -5,6 +5,20 @@
 
 namespace zephyr {
 
+struct VoiceParameters {
+  std::array<float, 3> oscillatorMix { 0.62f, 0.24f, 0.14f };
+  std::array<float, 3> detuneCents { 0.0f, -7.0f, 7.0f };
+  float attackSeconds { 0.002f };
+  float decaySeconds { 0.08f };
+  float sustainLevel { 0.75f };
+  float releaseSeconds { 0.12f };
+  float filterBaseCutoffHz { 220.0f };
+  float filterEnvelopeAmountHz { 2800.0f };
+  float filterPressureAmountHz { 1800.0f };
+  float filterTimbreAmountHz { 4200.0f };
+  float driveAmount { 1.2f };
+};
+
 class AdsrEnvelope {
 public:
   void setSampleRate(double sampleRate) noexcept;
@@ -42,6 +56,7 @@ public:
   void setSampleRate(double sampleRate) noexcept;
   void setMasterGain(float gain) noexcept { masterGain_ = gain; }
   void setPitchBendRange(float semitones) noexcept { pitchBendRangeSemitones_ = semitones; }
+  void setParameters(const VoiceParameters& parameters) noexcept;
 
   void start(std::uint8_t channel, std::uint8_t note, float frequency, float velocity, std::uint64_t frameIndex) noexcept;
   void release() noexcept;
@@ -66,6 +81,7 @@ private:
   static constexpr float midiToFrequency(std::uint8_t note) noexcept;
 
   AdsrEnvelope envelope_ {};
+  VoiceParameters parameters_ {};
   std::uint8_t channel_ { 0 };
   std::uint8_t note_ { 0 };
   float baseFrequency_ { 440.0f };
@@ -77,8 +93,6 @@ private:
   float masterGain_ { 0.18f };
   double sampleRate_ { 48000.0 };
   std::array<float, 3> phases_ { 0.0f, 0.0f, 0.0f };
-  std::array<float, 3> detuneCents_ { 0.0f, -7.0f, 7.0f };
-  std::array<float, 3> oscillatorMix_ { 0.62f, 0.24f, 0.14f };
   float filterState_ { 0.0f };
   bool active_ { false };
   bool releasing_ { false };
