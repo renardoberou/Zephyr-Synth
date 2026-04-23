@@ -13,6 +13,7 @@ float midiNoteToFrequency(std::uint8_t note) noexcept {
 
 ZephyrEngine::ZephyrEngine() {
   blockEvents_.reserve(kMaxEventsPerBlock);
+  deferredReleases_.reserve(64);
 }
 
 void ZephyrEngine::prepare(double sampleRate, std::uint32_t maxBlockSize) {
@@ -20,21 +21,30 @@ void ZephyrEngine::prepare(double sampleRate, std::uint32_t maxBlockSize) {
   maxBlockSize_ = maxBlockSize;
   absoluteFrame_ = 0;
   midiQueue_.clear();
+  parameterQueue_.clear();
+  deferredReleases_.clear();
   applyParametersToVoices();
 
   channelPitchBend_.fill(0.0f);
   channelPressure_.fill(0.0f);
   channelTimbre_.fill(0.0f);
+  channelSustainPedal_.fill(false);
 }
 
 bool ZephyrEngine::pushMidiEvent(const MidiEvent& event) noexcept {
   return midiQueue_.push(event);
 }
 
+bool ZephyrEngine::pushParameterMessage(const ParameterMessage& message) noexcept {
+  return parameterQueue_.push(message);
+}
+
 void ZephyrEngine::render(float* left, float* right, std::uint32_t numFrames) {
   if (!left || !right || numFrames == 0) {
     return;
   }
+
+  drainParameterMessages();
 
   std::fill(left, left + numFrames, 0.0f);
   std::fill(right, right + numFrames, 0.0f);
@@ -87,6 +97,98 @@ void ZephyrEngine::setParameters(const EngineParameters& parameters) noexcept {
   applyParametersToVoices();
 }
 
+void ZephyrEngine::drainParameterMessages() {
+  ParameterMessage message;
+  while (parameterQueue_.pop(message)) {
+    applyParameterMessage(message);
+  }
+}
+
+void ZephyrEngine::applyParameterMessage(const ParameterMessage& message) noexcept {
+  switch (message.target) {
+    case ParameterTarget::MasterGain:
+      setMasterGain(message.value);
+      break;
+    case ParameterTarget::PitchBendRange:
+      setPitchBendRange(message.value);
+      break;
+    case ParameterTarget::VoiceMix1:
+      parameters_.voice.oscillatorMix[0] = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::VoiceMix2:
+      parameters_.voice.oscillatorMix[1] = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::VoiceMix3:
+      parameters_.voice.oscillatorMix[2] = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::VoiceDetune1:
+      parameters_.voice.detuneCents[0] = std::clamp(message.value, -100.0f, 100.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::VoiceDetune2:
+      parameters_.voice.detuneCents[1] = std::clamp(message.value, -100.0f, 100.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::VoiceDetune3:
+      parameters_.voice.detuneCents[2] = std::clamp(message.value, -100.0f, 100.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Attack:
+      parameters_.voice.attackSeconds = std::clamp(message.value, 0.0001f, 10.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Decay:
+      parameters_.voice.decaySeconds = std::clamp(message.value, 0.0001f, 10.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Sustain:
+      parameters_.voice.sustainLevel = std::clamp(message.value, 0.0f, 1.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::Release:
+      parameters_.voice.releaseSeconds = std::clamp(message.value, 0.0001f, 10.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::FilterBaseCutoff:
+      parameters_.voice.filterBaseCutoffHz = std::clamp(message.value, 20.0f, 18000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::FilterEnvelopeAmount:
+      parameters_.voice.filterEnvelopeAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::FilterPressureAmount:
+      parameters_.voice.filterPressureAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::FilterTimbreAmount:
+      parameters_.voice.filterTimbreAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      applyParametersToVoices();
+      break;
+    case ParameterTarget::DriveAmount:
+      parameters_.voice.driveAmount = std::clamp(message.value, 0.1f, 8.0f);
+      applyParametersToVoices();
+      break;
+  }
+}
+
+void ZephyrEngine::releaseDeferredNotesForChannel(std::uint8_t channel) noexcept {
+  auto it = deferredReleases_.begin();
+  while (it != deferredReleases_.end()) {
+    if (it->channel == channel) {
+      if (auto* voice = findNewestMatchingVoice(it->channel, it->note)) {
+        voice->release();
+      }
+      it = deferredReleases_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 void ZephyrEngine::applyParametersToVoices() noexcept {
   for (auto& voice : voices_) {
     voice.setSampleRate(sampleRate_);
@@ -129,7 +231,9 @@ void ZephyrEngine::handleEvent(const MidiEvent& event) {
       break;
     }
     case MidiEventType::NoteOff: {
-      if (auto* voice = findNewestMatchingVoice(event.channel, event.note)) {
+      if (channelSustainPedal_[channel]) {
+        deferredReleases_.push_back({ event.channel, event.note });
+      } else if (auto* voice = findNewestMatchingVoice(event.channel, event.note)) {
         voice->release();
       }
       break;
@@ -161,8 +265,14 @@ void ZephyrEngine::handleEvent(const MidiEvent& event) {
       }
       break;
     }
-    case MidiEventType::SustainPedal:
+    case MidiEventType::SustainPedal: {
+      const bool down = event.value >= 0.5f;
+      channelSustainPedal_[channel] = down;
+      if (!down) {
+        releaseDeferredNotesForChannel(event.channel);
+      }
       break;
+    }
   }
 }
 
