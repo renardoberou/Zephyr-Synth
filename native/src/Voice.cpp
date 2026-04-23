@@ -8,7 +8,10 @@ namespace zephyr {
 namespace {
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kTwoPi = 2.0f * kPi;
-constexpr float kMaxPitchBendSemitones = 2.0f;
+
+float clamp01(float value) noexcept {
+  return std::clamp(value, 0.0f, 1.0f);
+}
 } // namespace
 
 void AdsrEnvelope::setSampleRate(double sampleRate) noexcept {
@@ -92,7 +95,8 @@ void Voice::start(std::uint8_t channel, std::uint8_t note, float frequency, floa
   pressure_ = 0.0f;
   timbre_ = 0.0f;
   pitchBend_ = 0.0f;
-  phase_ = 0.0f;
+  phases_ = { 0.0f, 0.0f, 0.0f };
+  filterState_ = 0.0f;
   active_ = true;
   releasing_ = false;
   startFrame_ = frameIndex;
@@ -133,22 +137,58 @@ float Voice::renderSample() noexcept {
   }
 
   const float frequency = currentFrequency();
-  const float increment = kTwoPi * frequency / static_cast<float>(sampleRate_);
-  phase_ += increment;
-  if (phase_ >= kTwoPi) {
-    phase_ -= kTwoPi;
+  float mixed = 0.0f;
+  for (std::size_t i = 0; i < oscillatorMix_.size(); ++i) {
+    mixed += renderOscillator(i, frequency) * oscillatorMix_[i];
   }
 
-  const float sine = std::sin(phase_);
-  const float bright = 2.0f * (phase_ / kTwoPi) - 1.0f;
-  const float waveform = (sine * (1.0f - timbre_)) + (bright * timbre_ * 0.35f);
-  const float pressureGain = 1.0f + (pressure_ * 0.25f);
-  return waveform * envelopeValue * velocity_ * masterGain_ * pressureGain;
+  const float contour = 0.35f + (envelopeValue * 0.65f);
+  const float pressureBoost = pressure_ * 1800.0f;
+  const float timbreBoost = timbre_ * 4200.0f;
+  const float cutoffHz = std::clamp(220.0f + pressureBoost + timbreBoost + (contour * 2800.0f), 80.0f, 12000.0f);
+  const float filtered = updateLowpass(mixed, cutoffHz);
+  const float driven = std::tanh(filtered * (1.2f + (pressure_ * 0.45f)));
+
+  return driven * envelopeValue * velocity_ * masterGain_;
 }
 
 float Voice::currentFrequency() const noexcept {
-  const float bendSemitones = pitchBend_ * kMaxPitchBendSemitones;
+  const float bendSemitones = pitchBend_ * pitchBendRangeSemitones_;
   return baseFrequency_ * std::pow(2.0f, bendSemitones / 12.0f);
+}
+
+float Voice::renderOscillator(std::size_t index, float frequency) noexcept {
+  const float detunedFrequency = frequency * std::pow(2.0f, detuneCents_[index] / 1200.0f);
+  const float increment = kTwoPi * detunedFrequency / static_cast<float>(sampleRate_);
+  phases_[index] += increment;
+  if (phases_[index] >= kTwoPi) {
+    phases_[index] -= kTwoPi;
+  }
+
+  const float normalizedPhase = phases_[index] / kTwoPi;
+  switch (index) {
+    case 0: {
+      const float saw = (2.0f * normalizedPhase) - 1.0f;
+      const float soft = std::sin(phases_[index]);
+      return (saw * (0.82f - (timbre_ * 0.28f))) + (soft * 0.18f);
+    }
+    case 1: {
+      const float pulseWidth = 0.5f + ((timbre_ - 0.5f) * 0.32f);
+      return normalizedPhase < pulseWidth ? 1.0f : -1.0f;
+    }
+    case 2: {
+      const float triangle = 1.0f - (4.0f * std::fabs(normalizedPhase - 0.5f));
+      return triangle;
+    }
+    default:
+      return std::sin(phases_[index]);
+  }
+}
+
+float Voice::updateLowpass(float input, float cutoffHz) noexcept {
+  const float x = std::exp((-2.0f * kPi * cutoffHz) / static_cast<float>(sampleRate_));
+  filterState_ = ((1.0f - x) * input) + (x * filterState_);
+  return filterState_;
 }
 
 constexpr float Voice::midiToFrequency(std::uint8_t note) noexcept {
