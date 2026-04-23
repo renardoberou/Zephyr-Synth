@@ -1,7 +1,7 @@
 import { Synth } from "./src/synth.js?v=14";
 
 const LATENCY_LOOP_MS = 4;
-const MOBILE_MAX_VOICES = 4;
+const MOBILE_MAX_VOICES = 3;
 
 function isMobileLikeDevice() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -31,7 +31,7 @@ function installRafThrottle() {
   const nativeRAF = window.requestAnimationFrame.bind(window);
   const nativeCancelRAF = window.cancelAnimationFrame.bind(window);
   const timerMap = new Map();
-  const frameBudgetMs = 1000 / 30;
+  const frameBudgetMs = 1000 / 12;
   let lastFrameTime = 0;
   let rafIdSerial = 1;
 
@@ -61,6 +61,32 @@ function installRafThrottle() {
   };
 }
 
+function simplifyVoicePath(voice) {
+  if (!voice || voice.__zephyrSimplePath) return;
+  voice.__zephyrSimplePath = true;
+
+  try { voice.voiceMix.disconnect(); } catch {}
+  try { voice.filterSplit.disconnect(); } catch {}
+  try { voice.serialLpf1A.disconnect(); } catch {}
+  try { voice.serialLpf1B.disconnect(); } catch {}
+  try { voice.serialLpf2.disconnect(); } catch {}
+  try { voice.serialModeGain.disconnect(); } catch {}
+  try { voice.parallelLpf1A.disconnect(); } catch {}
+  try { voice.parallelLpf1B.disconnect(); } catch {}
+  try { voice.parallelLpf2.disconnect(); } catch {}
+  try { voice.parallelLpf1Gain.disconnect(); } catch {}
+  try { voice.parallelLpf2Gain.disconnect(); } catch {}
+  try { voice.parallelSum.disconnect(); } catch {}
+  try { voice.parallelModeGain.disconnect(); } catch {}
+  try { voice.postFilterSum.disconnect(); } catch {}
+  try { voice.hpf.disconnect(); } catch {}
+
+  try { voice.voiceMix.connect(voice.amp); } catch {}
+
+  if (voice.osc2Gain?.gain) voice.osc2Gain.gain.setValueAtTime(0, 0);
+  if (voice.osc3Gain?.gain) voice.osc3Gain.gain.setValueAtTime(0, 0);
+}
+
 function optimizeInstanceForMobile(synth) {
   if (!isMobileLikeDevice() || synth.__zephyrMobileOptimized) return;
   synth.__zephyrMobileOptimized = true;
@@ -68,27 +94,38 @@ function optimizeInstanceForMobile(synth) {
   installRafThrottle();
 
   synth.voices.forEach((voice) => {
+    simplifyVoicePath(voice);
     if (voice.driveShaper) voice.driveShaper.oversample = "none";
   });
   if (synth.masterSaturator) synth.masterSaturator.oversample = "none";
   if (synth.delaySaturator) synth.delaySaturator.oversample = "none";
 
-  if (synth.baseValues.activeVoiceCount > MOBILE_MAX_VOICES) {
-    synth.baseValues.activeVoiceCount = MOBILE_MAX_VOICES;
-    const voiceSlider = document.getElementById("voice-count");
-    const voiceReadout = document.getElementById("voice-count-readout");
-    if (voiceSlider) voiceSlider.value = String(MOBILE_MAX_VOICES);
-    if (voiceReadout) voiceReadout.textContent = String(MOBILE_MAX_VOICES);
-  }
-
+  synth.baseValues.activeVoiceCount = Math.min(synth.baseValues.activeVoiceCount, MOBILE_MAX_VOICES);
+  synth.baseValues.unisonCount = 1;
   synth.baseValues.fxSend = 0;
-  if (synth.fxSendGain) synth.fxSendGain.gain.setValueAtTime(0, synth.ctx.currentTime);
-  const fxSendSlider = document.getElementById("fx-send");
-  const fxSendReadout = document.getElementById("fx-send-readout");
-  if (fxSendSlider) fxSendSlider.value = "0";
-  if (fxSendReadout) fxSendReadout.textContent = "0.00";
+  synth.baseValues.analogDrift = 0;
+  synth.baseValues.analogInstability = 0;
+  synth.baseValues.voiceDrive = 0;
+  synth.baseValues.masterDrive = 0;
 
-  writeStatus("Audio running · mobile low-latency mode");
+  if (synth.fxSendGain) synth.fxSendGain.gain.setValueAtTime(0, synth.ctx.currentTime);
+  if (synth.masterDriveGain) synth.masterDriveGain.gain.setValueAtTime(1, synth.ctx.currentTime);
+  if (synth.masterCompGain) synth.masterCompGain.gain.setValueAtTime(1, synth.ctx.currentTime);
+
+  const setSlider = (id, value, readoutId = null, readoutText = null) => {
+    const slider = document.getElementById(id);
+    const readout = readoutId ? document.getElementById(readoutId) : null;
+    if (slider) slider.value = String(value);
+    if (readout && readoutText !== null) readout.textContent = readoutText;
+  };
+
+  setSlider("voice-count", MOBILE_MAX_VOICES, "voice-count-readout", String(MOBILE_MAX_VOICES));
+  setSlider("unison-count", 1, "unison-count-readout", "1");
+  setSlider("fx-send", 0, "fx-send-readout", "0.00");
+  setSlider("analog-instability", 0, "analog-instability-readout", "0%");
+
+  document.documentElement.classList.add("zephyr-low-latency-mode");
+  writeStatus("Audio running · ultra-light mobile mode");
 }
 
 function ensureRealtimeLoop(synth) {
