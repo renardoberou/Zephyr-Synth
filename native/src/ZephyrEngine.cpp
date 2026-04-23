@@ -20,11 +20,7 @@ void ZephyrEngine::prepare(double sampleRate, std::uint32_t maxBlockSize) {
   maxBlockSize_ = maxBlockSize;
   absoluteFrame_ = 0;
   midiQueue_.clear();
-
-  for (auto& voice : voices_) {
-    voice.setSampleRate(sampleRate_);
-    voice.setMasterGain(masterGain_);
-  }
+  applyParametersToVoices();
 
   channelPitchBend_.fill(0.0f);
   channelPressure_.fill(0.0f);
@@ -70,8 +66,33 @@ void ZephyrEngine::render(float* left, float* right, std::uint32_t numFrames) {
 
 void ZephyrEngine::setMasterGain(float gain) noexcept {
   masterGain_ = std::clamp(gain, 0.0f, 1.0f);
+  parameters_.masterGain = masterGain_;
   for (auto& voice : voices_) {
     voice.setMasterGain(masterGain_);
+  }
+}
+
+void ZephyrEngine::setPitchBendRange(float semitones) noexcept {
+  pitchBendRangeSemitones_ = std::clamp(semitones, 0.0f, 24.0f);
+  parameters_.pitchBendRangeSemitones = pitchBendRangeSemitones_;
+  for (auto& voice : voices_) {
+    voice.setPitchBendRange(pitchBendRangeSemitones_);
+  }
+}
+
+void ZephyrEngine::setParameters(const EngineParameters& parameters) noexcept {
+  parameters_ = parameters;
+  masterGain_ = std::clamp(parameters_.masterGain, 0.0f, 1.0f);
+  pitchBendRangeSemitones_ = std::clamp(parameters_.pitchBendRangeSemitones, 0.0f, 24.0f);
+  applyParametersToVoices();
+}
+
+void ZephyrEngine::applyParametersToVoices() noexcept {
+  for (auto& voice : voices_) {
+    voice.setSampleRate(sampleRate_);
+    voice.setMasterGain(masterGain_);
+    voice.setPitchBendRange(pitchBendRangeSemitones_);
+    voice.setParameters(parameters_.voice);
   }
 }
 
@@ -98,6 +119,9 @@ void ZephyrEngine::handleEvent(const MidiEvent& event) {
       if (!voice) {
         return;
       }
+      voice->setMasterGain(masterGain_);
+      voice->setPitchBendRange(pitchBendRangeSemitones_);
+      voice->setParameters(parameters_.voice);
       voice->start(event.channel, event.note, midiNoteToFrequency(event.note), std::clamp(event.value, 0.0f, 1.0f), absoluteFrame_ + event.sampleOffset);
       voice->setPitchBend(channelPitchBend_[channel]);
       voice->setPressure(channelPressure_[channel]);
