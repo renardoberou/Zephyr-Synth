@@ -16,6 +16,19 @@ struct VoiceParameters {
   float filterEnvelopeAmountHz { 2800.0f };
   float filterPressureAmountHz { 1800.0f };
   float filterTimbreAmountHz { 4200.0f };
+  float filter2BaseCutoffHz { 3400.0f };
+  float filter2EnvelopeAmountHz { 1600.0f };
+  float filter2PressureAmountHz { 900.0f };
+  float filter2TimbreAmountHz { 2200.0f };
+  float filterRoutingBlend { 0.5f };
+  float filterRoutingMode { 0.0f };
+  float highpassCutoffHz { 40.0f };
+  float lfoRateHz { 4.5f };
+  float lfoPitchAmountSemitones { 0.0f };
+  float lfoFilterAmountHz { 0.0f };
+  float macro1Value { 0.0f };
+  float macro1ToCutoffHz { 0.0f };
+  float macro1ToDrive { 0.0f };
   float driveAmount { 1.2f };
 };
 
@@ -77,7 +90,8 @@ public:
 private:
   float currentFrequency() const noexcept;
   float renderOscillator(std::size_t index, float frequency) noexcept;
-  float updateLowpass(float input, float cutoffHz) noexcept;
+  float updateLowpass(float input, float cutoffHz, float& state) noexcept;
+  float updateHighpass(float input, float cutoffHz) noexcept;
   static constexpr float midiToFrequency(std::uint8_t note) noexcept;
 
   AdsrEnvelope envelope_ {};
@@ -93,7 +107,11 @@ private:
   float masterGain_ { 0.18f };
   double sampleRate_ { 48000.0 };
   std::array<float, 3> phases_ { 0.0f, 0.0f, 0.0f };
-  float filterState_ { 0.0f };
+  float lfoPhase_ { 0.0f };
+  float filterState1_ { 0.0f };
+  float filterState2_ { 0.0f };
+  float hpfState_ { 0.0f };
+  float hpfLastInput_ { 0.0f };
   bool active_ { false };
   bool releasing_ { false };
   std::uint64_t startFrame_ { 0 };
