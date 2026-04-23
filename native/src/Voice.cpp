@@ -8,10 +8,6 @@ namespace zephyr {
 namespace {
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kTwoPi = 2.0f * kPi;
-
-float clamp01(float value) noexcept {
-  return std::clamp(value, 0.0f, 1.0f);
-}
 } // namespace
 
 void AdsrEnvelope::setSampleRate(double sampleRate) noexcept {
@@ -87,6 +83,14 @@ void Voice::setSampleRate(double sampleRate) noexcept {
   envelope_.setSampleRate(sampleRate_);
 }
 
+void Voice::setParameters(const VoiceParameters& parameters) noexcept {
+  parameters_ = parameters;
+  envelope_.setAttack(parameters_.attackSeconds);
+  envelope_.setDecay(parameters_.decaySeconds);
+  envelope_.setSustain(parameters_.sustainLevel);
+  envelope_.setRelease(parameters_.releaseSeconds);
+}
+
 void Voice::start(std::uint8_t channel, std::uint8_t note, float frequency, float velocity, std::uint64_t frameIndex) noexcept {
   channel_ = channel;
   note_ = note;
@@ -138,16 +142,21 @@ float Voice::renderSample() noexcept {
 
   const float frequency = currentFrequency();
   float mixed = 0.0f;
-  for (std::size_t i = 0; i < oscillatorMix_.size(); ++i) {
-    mixed += renderOscillator(i, frequency) * oscillatorMix_[i];
+  for (std::size_t i = 0; i < parameters_.oscillatorMix.size(); ++i) {
+    mixed += renderOscillator(i, frequency) * parameters_.oscillatorMix[i];
   }
 
   const float contour = 0.35f + (envelopeValue * 0.65f);
-  const float pressureBoost = pressure_ * 1800.0f;
-  const float timbreBoost = timbre_ * 4200.0f;
-  const float cutoffHz = std::clamp(220.0f + pressureBoost + timbreBoost + (contour * 2800.0f), 80.0f, 12000.0f);
+  const float cutoffHz = std::clamp(
+    parameters_.filterBaseCutoffHz
+      + (pressure_ * parameters_.filterPressureAmountHz)
+      + (timbre_ * parameters_.filterTimbreAmountHz)
+      + (contour * parameters_.filterEnvelopeAmountHz),
+    80.0f,
+    12000.0f
+  );
   const float filtered = updateLowpass(mixed, cutoffHz);
-  const float driven = std::tanh(filtered * (1.2f + (pressure_ * 0.45f)));
+  const float driven = std::tanh(filtered * (parameters_.driveAmount + (pressure_ * 0.45f)));
 
   return driven * envelopeValue * velocity_ * masterGain_;
 }
@@ -158,7 +167,7 @@ float Voice::currentFrequency() const noexcept {
 }
 
 float Voice::renderOscillator(std::size_t index, float frequency) noexcept {
-  const float detunedFrequency = frequency * std::pow(2.0f, detuneCents_[index] / 1200.0f);
+  const float detunedFrequency = frequency * std::pow(2.0f, parameters_.detuneCents[index] / 1200.0f);
   const float increment = kTwoPi * detunedFrequency / static_cast<float>(sampleRate_);
   phases_[index] += increment;
   if (phases_[index] >= kTwoPi) {
