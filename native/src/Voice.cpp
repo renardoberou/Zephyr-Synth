@@ -150,38 +150,44 @@ float Voice::renderSample() noexcept {
     lfoPhase_ -= kTwoPi;
   }
   const float lfoValue = std::sin(lfoPhase_);
-
   const float macroValue = std::clamp(parameters_.macro1Value, 0.0f, 1.0f);
-  const float lfoPitchSemitones = lfoValue * parameters_.lfoPitchAmountSemitones;
-  const float frequency = currentFrequency() * std::pow(2.0f, lfoPitchSemitones / 12.0f);
+
+  float pitchModSemitones = 0.0f;
+  float filter1ModHz = 0.0f;
+  float filter2ModHz = 0.0f;
+  float driveMod = 0.0f;
+
+  for (const auto& route : parameters_.modulationRoutes) {
+    if (!route.enabled) {
+      continue;
+    }
+    const float modValue = sourceValue(route.source, envelopeValue, lfoValue, macroValue);
+    const float contribution = modValue * route.amount;
+    switch (route.destination) {
+      case ModulationDestination::PitchSemitones:
+        pitchModSemitones += contribution;
+        break;
+      case ModulationDestination::Filter1Cutoff:
+        filter1ModHz += contribution;
+        break;
+      case ModulationDestination::Filter2Cutoff:
+        filter2ModHz += contribution;
+        break;
+      case ModulationDestination::Drive:
+        driveMod += contribution;
+        break;
+    }
+  }
+
+  const float frequency = currentFrequency() * std::pow(2.0f, pitchModSemitones / 12.0f);
 
   float mixed = 0.0f;
   for (std::size_t i = 0; i < parameters_.oscillatorMix.size(); ++i) {
     mixed += renderOscillator(i, frequency) * parameters_.oscillatorMix[i];
   }
 
-  const float contour = 0.35f + (envelopeValue * 0.65f);
-  const float modulationCutoff = (lfoValue * parameters_.lfoFilterAmountHz) + (macroValue * parameters_.macro1ToCutoffHz);
-
-  const float cutoff1Hz = std::clamp(
-    parameters_.filterBaseCutoffHz
-      + (pressure_ * parameters_.filterPressureAmountHz)
-      + (timbre_ * parameters_.filterTimbreAmountHz)
-      + (contour * parameters_.filterEnvelopeAmountHz)
-      + modulationCutoff,
-    40.0f,
-    16000.0f
-  );
-
-  const float cutoff2Hz = std::clamp(
-    parameters_.filter2BaseCutoffHz
-      + (pressure_ * parameters_.filter2PressureAmountHz)
-      + (timbre_ * parameters_.filter2TimbreAmountHz)
-      + (contour * parameters_.filter2EnvelopeAmountHz)
-      + (modulationCutoff * 0.65f),
-    40.0f,
-    18000.0f
-  );
+  const float cutoff1Hz = std::clamp(parameters_.filterBaseCutoffHz + filter1ModHz, 40.0f, 16000.0f);
+  const float cutoff2Hz = std::clamp(parameters_.filter2BaseCutoffHz + filter2ModHz, 40.0f, 18000.0f);
 
   const float stage1 = updateLowpass(mixed, cutoff1Hz, filterState1_);
   const float stage2Parallel = updateLowpass(mixed, cutoff2Hz, filterState2_);
@@ -194,7 +200,7 @@ float Voice::renderSample() noexcept {
   const float routed = (serialOut * (1.0f - mode)) + (parallelOut * mode);
 
   const float highpassed = updateHighpass(routed, std::clamp(parameters_.highpassCutoffHz, 20.0f, 4000.0f));
-  const float drive = std::max(0.1f, parameters_.driveAmount + (macroValue * parameters_.macro1ToDrive) + (pressure_ * 0.45f));
+  const float drive = std::max(0.1f, parameters_.driveAmount + driveMod);
   const float driven = std::tanh(highpassed * drive);
 
   return driven * envelopeValue * velocity_ * masterGain_;
@@ -231,6 +237,22 @@ float Voice::renderOscillator(std::size_t index, float frequency) noexcept {
     default:
       return std::sin(phases_[index]);
   }
+}
+
+float Voice::sourceValue(ModulationSource source, float envelopeValue, float lfoValue, float macroValue) const noexcept {
+  switch (source) {
+    case ModulationSource::Envelope:
+      return envelopeValue;
+    case ModulationSource::Pressure:
+      return pressure_;
+    case ModulationSource::Timbre:
+      return timbre_;
+    case ModulationSource::Lfo1:
+      return lfoValue;
+    case ModulationSource::Macro1:
+      return macroValue;
+  }
+  return 0.0f;
 }
 
 float Voice::updateLowpass(float input, float cutoffHz, float& state) noexcept {
