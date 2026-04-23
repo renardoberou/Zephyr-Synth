@@ -3,9 +3,13 @@
 #include <array>
 #include <cstdint>
 
+#include "Modulation.h"
+
 namespace zephyr {
 
 struct VoiceParameters {
+  static constexpr std::size_t kRouteCount = 10;
+
   std::array<float, 3> oscillatorMix { 0.62f, 0.24f, 0.14f };
   std::array<float, 3> detuneCents { 0.0f, -7.0f, 7.0f };
   float attackSeconds { 0.002f };
@@ -13,23 +17,25 @@ struct VoiceParameters {
   float sustainLevel { 0.75f };
   float releaseSeconds { 0.12f };
   float filterBaseCutoffHz { 220.0f };
-  float filterEnvelopeAmountHz { 2800.0f };
-  float filterPressureAmountHz { 1800.0f };
-  float filterTimbreAmountHz { 4200.0f };
   float filter2BaseCutoffHz { 3400.0f };
-  float filter2EnvelopeAmountHz { 1600.0f };
-  float filter2PressureAmountHz { 900.0f };
-  float filter2TimbreAmountHz { 2200.0f };
   float filterRoutingBlend { 0.5f };
   float filterRoutingMode { 0.0f };
   float highpassCutoffHz { 40.0f };
   float lfoRateHz { 4.5f };
-  float lfoPitchAmountSemitones { 0.0f };
-  float lfoFilterAmountHz { 0.0f };
   float macro1Value { 0.0f };
-  float macro1ToCutoffHz { 0.0f };
-  float macro1ToDrive { 0.0f };
   float driveAmount { 1.2f };
+  std::array<ModulationRoute, kRouteCount> modulationRoutes {{
+    { true, ModulationSource::Envelope, ModulationDestination::Filter1Cutoff, 2800.0f },
+    { true, ModulationSource::Envelope, ModulationDestination::Filter2Cutoff, 1600.0f },
+    { true, ModulationSource::Pressure, ModulationDestination::Filter1Cutoff, 1800.0f },
+    { true, ModulationSource::Pressure, ModulationDestination::Filter2Cutoff, 900.0f },
+    { true, ModulationSource::Timbre, ModulationDestination::Filter1Cutoff, 4200.0f },
+    { true, ModulationSource::Timbre, ModulationDestination::Filter2Cutoff, 2200.0f },
+    { true, ModulationSource::Lfo1, ModulationDestination::PitchSemitones, 0.0f },
+    { true, ModulationSource::Lfo1, ModulationDestination::Filter1Cutoff, 0.0f },
+    { true, ModulationSource::Macro1, ModulationDestination::Filter1Cutoff, 0.0f },
+    { true, ModulationSource::Macro1, ModulationDestination::Drive, 0.0f },
+  }};
 };
 
 class AdsrEnvelope {
@@ -90,6 +96,7 @@ public:
 private:
   float currentFrequency() const noexcept;
   float renderOscillator(std::size_t index, float frequency) noexcept;
+  float sourceValue(ModulationSource source, float envelopeValue, float lfoValue, float macroValue) const noexcept;
   float updateLowpass(float input, float cutoffHz, float& state) noexcept;
   float updateHighpass(float input, float cutoffHz) noexcept;
   static constexpr float midiToFrequency(std::uint8_t note) noexcept;
