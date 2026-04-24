@@ -34,12 +34,12 @@ class MainActivity : AppCompatActivity() {
         cutoffSeek.progress = 30
 
         macroSeek.setOnSeekBarChangeListener(simpleSeekListener { progress ->
-            NativeBridge.setParameter(24, progress / 100f)
+            NativeBridge.setParameter(ParameterTargets.MACRO1_VALUE, progress / 100f)
         })
 
         cutoffSeek.setOnSeekBarChangeListener(simpleSeekListener { progress ->
             val hz = 80f + ((progress / 100f) * 8000f)
-            NativeBridge.setParameter(12, hz)
+            NativeBridge.setParameter(ParameterTargets.FILTER_BASE_CUTOFF, hz)
         })
 
         bindPad(findViewById(R.id.noteCButton), 60)
