@@ -9,5 +9,6 @@ object NativeBridge {
     external fun stopEngine()
     external fun noteOn(note: Int, velocity: Int): Boolean
     external fun noteOff(note: Int): Boolean
+    external fun sendMidi(bytes: ByteArray, count: Int): Boolean
     external fun setParameter(target: Int, value: Float): Boolean
 }
