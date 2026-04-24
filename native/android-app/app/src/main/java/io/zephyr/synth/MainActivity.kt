@@ -9,16 +9,27 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
+    private lateinit var midiStatusText: TextView
+    private lateinit var midiInputController: MidiInputController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         statusText = findViewById(R.id.statusText)
+        midiStatusText = findViewById(R.id.midiStatusText)
         val startButton: Button = findViewById(R.id.startButton)
         val stopButton: Button = findViewById(R.id.stopButton)
+        val refreshMidiButton: Button = findViewById(R.id.refreshMidiButton)
         val macroSeek: SeekBar = findViewById(R.id.macroSeek)
         val cutoffSeek: SeekBar = findViewById(R.id.cutoffSeek)
+
+        midiInputController = MidiInputController(this) { status ->
+            runOnUiThread {
+                midiStatusText.text = status
+            }
+        }
+        midiInputController.start()
 
         startButton.setOnClickListener {
             val started = NativeBridge.startEngine()
@@ -28,6 +39,10 @@ class MainActivity : AppCompatActivity() {
         stopButton.setOnClickListener {
             NativeBridge.stopEngine()
             statusText.text = "Engine stopped"
+        }
+
+        refreshMidiButton.setOnClickListener {
+            midiInputController.refresh()
         }
 
         macroSeek.progress = 0
@@ -48,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        midiInputController.stop()
         NativeBridge.stopEngine()
         super.onDestroy()
     }
