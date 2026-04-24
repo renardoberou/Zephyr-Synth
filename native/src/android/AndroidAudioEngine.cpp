@@ -1,10 +1,12 @@
 #include "zephyr/AndroidAudioEngine.h"
 
 #include "zephyr/MidiTranslator.h"
+#include "zephyr/ParameterMessage.h"
 #include "zephyr/ZephyrEngine.h"
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #include <oboe/Oboe.h>
 
@@ -49,7 +51,11 @@ public:
     return engine_.pushMidiEvent(event);
   }
 
-  oboe::DataCallbackResult onAudioReady(oboe::AudioStream* audioStream, void* audioData, int32_t numFrames) override {
+  bool pushParameterMessage(const ParameterMessage& message) {
+    return engine_.pushParameterMessage(message);
+  }
+
+  oboe::DataCallbackResult onAudioReady(oboe::AudioStream* /*audioStream*/, void* audioData, int32_t numFrames) override {
     auto* output = static_cast<float*>(audioData);
     if (!output) {
       return oboe::DataCallbackResult::Continue;
@@ -90,6 +96,10 @@ void AndroidAudioEngine::stop() {
 
 bool AndroidAudioEngine::handleMidiMessage(const std::uint8_t* data, std::size_t size) {
   return impl_ && impl_->handleMidiMessage(data, size);
+}
+
+bool AndroidAudioEngine::pushParameterMessage(const ParameterMessage& message) {
+  return impl_ && impl_->pushParameterMessage(message);
 }
 
 } // namespace zephyr
