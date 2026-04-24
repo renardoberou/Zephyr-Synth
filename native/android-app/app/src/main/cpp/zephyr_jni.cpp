@@ -19,9 +19,13 @@ zephyr::AndroidAudioEngine& ensureEngine() {
   return *gEngine;
 }
 
-bool sendMidi(const std::vector<std::uint8_t>& bytes) {
+bool sendMidiBytes(const std::uint8_t* bytes, std::size_t size) {
   std::lock_guard<std::mutex> lock(gMutex);
-  return ensureEngine().handleMidiMessage(bytes.data(), bytes.size());
+  return ensureEngine().handleMidiMessage(bytes, size);
+}
+
+bool sendMidi(const std::vector<std::uint8_t>& bytes) {
+  return sendMidiBytes(bytes.data(), bytes.size());
 }
 } // namespace
 
@@ -47,6 +51,23 @@ Java_io_zephyr_synth_NativeBridge_noteOn(JNIEnv*, jobject, jint note, jint veloc
 extern "C" JNIEXPORT jboolean JNICALL
 Java_io_zephyr_synth_NativeBridge_noteOff(JNIEnv*, jobject, jint note) {
   return sendMidi({ static_cast<std::uint8_t>(0x80), static_cast<std::uint8_t>(note & 0x7F), static_cast<std::uint8_t>(0) }) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_io_zephyr_synth_NativeBridge_sendMidi(JNIEnv* env, jobject, jbyteArray bytes, jint count) {
+  if (!bytes) {
+    return JNI_FALSE;
+  }
+
+  const jsize available = env->GetArrayLength(bytes);
+  const jsize safeCount = count < available ? count : available;
+  if (safeCount <= 0) {
+    return JNI_FALSE;
+  }
+
+  std::vector<std::uint8_t> buffer(static_cast<std::size_t>(safeCount));
+  env->GetByteArrayRegion(bytes, 0, safeCount, reinterpret_cast<jbyte*>(buffer.data()));
+  return sendMidiBytes(buffer.data(), buffer.size()) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
