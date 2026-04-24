@@ -3,6 +3,7 @@ package io.zephyr.synth
 import android.content.Context
 import android.media.midi.MidiDevice
 import android.media.midi.MidiDeviceInfo
+import android.media.midi.MidiDeviceStatus
 import android.media.midi.MidiManager
 import android.media.midi.MidiOutputPort
 import android.media.midi.MidiReceiver
@@ -61,7 +62,7 @@ class MidiInputController(
         }
 
         closeConnections()
-        val devices = manager.devices ?: emptyArray()
+        val devices = manager.devices
         if (devices.isEmpty()) {
             onStatusChanged("No MIDI devices")
             return
