@@ -14,6 +14,7 @@ class Result;
 namespace zephyr {
 
 class MidiTranslator;
+class ParameterMessage;
 class ZephyrEngine;
 
 class AndroidAudioEngine {
@@ -25,6 +26,7 @@ public:
   void stop();
 
   bool handleMidiMessage(const std::uint8_t* data, std::size_t size);
+  bool pushParameterMessage(const ParameterMessage& message);
 
 private:
   class Impl;
