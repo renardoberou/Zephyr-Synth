@@ -1,0 +1,45 @@
+name: Build Android Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "native/android-app/**"
+      - "native/include/**"
+      - "native/src/**"
+      - "native/CMakeLists.txt"
+      - ".github/workflows/android-debug-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: native/android-app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: 9.4.1
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zephyr-synth-debug-apk
+          path: native/android-app/app/build/outputs/apk/debug/*.apk
