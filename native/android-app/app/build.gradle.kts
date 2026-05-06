@@ -1,6 +1,5 @@
 plugins {
   id("com.android.application")
-  id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -42,10 +41,6 @@ android {
       version = "3.22.1"
     }
   }
-}
-
-kotlin {
-  jvmToolchain(17)
 }
 
 dependencies {
