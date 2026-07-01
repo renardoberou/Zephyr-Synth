@@ -14,6 +14,10 @@ add_library(zephyr_engine STATIC
 target_include_directories(zephyr_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if(ANDROID)
+  message(STATUS "Building for Android")
+  message(STATUS "CMAKE_FIND_ROOT_PATH: ${CMAKE_FIND_ROOT_PATH}")
+  message(STATUS "CMAKE_SYSTEM_PREFIX_PATH: ${CMAKE_SYSTEM_PREFIX_PATH}")
+  # Gradle/AGP sets CMAKE_FIND_ROOT_PATH to include prefab libs
   find_package(oboe REQUIRED CONFIG)
 
   add_library(zephyr_android STATIC
