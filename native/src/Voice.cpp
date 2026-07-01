@@ -189,15 +189,15 @@ float Voice::renderSample() noexcept {
   const float cutoff1Hz = std::clamp(parameters_.filterBaseCutoffHz + filter1ModHz, 40.0f, 16000.0f);
   const float cutoff2Hz = std::clamp(parameters_.filter2BaseCutoffHz + filter2ModHz, 40.0f, 18000.0f);
 
-  const float stage1 = updateLowpass(mixed, cutoff1Hz, filterState1_);
-  const float stage2Parallel = updateLowpass(mixed, cutoff2Hz, filterState2_);
-  const float stage2Serial = updateLowpass(stage1, cutoff2Hz, filterState2_);
-
   const float blend = std::clamp(parameters_.filterRoutingBlend, 0.0f, 1.0f);
   const float mode = std::clamp(parameters_.filterRoutingMode, 0.0f, 1.0f);
-  const float parallelOut = (stage1 * (1.0f - blend)) + (stage2Parallel * blend);
-  const float serialOut = stage2Serial;
-  const float routed = (serialOut * (1.0f - mode)) + (parallelOut * mode);
+
+  const float stage1 = updateLowpass(mixed, cutoff1Hz, filterState1_);
+  const float filter2Input = (stage1 * (1.0f - mode)) + (mixed * mode);
+  const float stage2 = updateLowpass(filter2Input, cutoff2Hz, filterState2_);
+
+  const float parallelOut = (stage1 * (1.0f - blend)) + (stage2 * blend);
+  const float routed = (stage2 * (1.0f - mode)) + (parallelOut * mode);
 
   const float highpassed = updateHighpass(routed, std::clamp(parameters_.highpassCutoffHz, 20.0f, 4000.0f));
   const float drive = std::max(0.1f, parameters_.driveAmount + driveMod);

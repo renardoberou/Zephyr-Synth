@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zephyr Synth</string>
+    <string name="title">ZEPHYR</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="refresh_midi">MIDI</string>
+    <string name="macro_1">Macro 1</string>
+    <string name="cutoff_base">Cutoff Base</string>
+    <string name="midi_none">No MIDI input connected</string>
+    <string name="status_running">Engine running</string>
+    <string name="status_stopped">Engine stopped</string>
+    <string name="status_failed">Engine failed to start</string>
+    <string name="status_paused_focus">Paused (audio focus lost)</string>
+    <string name="status_focus_denied">Audio focus denied</string>
+</resources>

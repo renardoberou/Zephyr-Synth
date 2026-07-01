@@ -4,13 +4,6 @@
 #include <cstdint>
 #include <memory>
 
-namespace oboe {
-class AudioStream;
-class AudioStreamBuilder;
-class MidiInputStream;
-class Result;
-} // namespace oboe
-
 namespace zephyr {
 
 class MidiTranslator;

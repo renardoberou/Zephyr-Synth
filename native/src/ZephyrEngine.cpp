@@ -9,6 +9,16 @@ namespace {
 float midiNoteToFrequency(std::uint8_t note) noexcept {
   return 440.0f * std::pow(2.0f, (static_cast<int>(note) - 69) / 12.0f);
 }
+
+void setRouteAmount(VoiceParameters& voice, ModulationSource source, ModulationDestination destination, float amount) noexcept {
+  for (auto& route : voice.modulationRoutes) {
+    if (route.source == source && route.destination == destination) {
+      route.amount = amount;
+      route.enabled = true;
+      return;
+    }
+  }
+}
 } // namespace
 
 ZephyrEngine::ZephyrEngine() {
@@ -163,15 +173,15 @@ void ZephyrEngine::applyParameterMessage(const ParameterMessage& message) noexce
       applyParametersToVoices();
       break;
     case ParameterTarget::FilterEnvelopeAmount:
-      parameters_.voice.filterEnvelopeAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Envelope, ModulationDestination::Filter1Cutoff, std::clamp(message.value, 0.0f, 20000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::FilterPressureAmount:
-      parameters_.voice.filterPressureAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Pressure, ModulationDestination::Filter1Cutoff, std::clamp(message.value, 0.0f, 20000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::FilterTimbreAmount:
-      parameters_.voice.filterTimbreAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Timbre, ModulationDestination::Filter1Cutoff, std::clamp(message.value, 0.0f, 20000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::Filter2BaseCutoff:
@@ -179,15 +189,15 @@ void ZephyrEngine::applyParameterMessage(const ParameterMessage& message) noexce
       applyParametersToVoices();
       break;
     case ParameterTarget::Filter2EnvelopeAmount:
-      parameters_.voice.filter2EnvelopeAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Envelope, ModulationDestination::Filter2Cutoff, std::clamp(message.value, 0.0f, 20000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::Filter2PressureAmount:
-      parameters_.voice.filter2PressureAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Pressure, ModulationDestination::Filter2Cutoff, std::clamp(message.value, 0.0f, 20000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::Filter2TimbreAmount:
-      parameters_.voice.filter2TimbreAmountHz = std::clamp(message.value, 0.0f, 20000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Timbre, ModulationDestination::Filter2Cutoff, std::clamp(message.value, 0.0f, 20000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::FilterRoutingBlend:
@@ -207,11 +217,11 @@ void ZephyrEngine::applyParameterMessage(const ParameterMessage& message) noexce
       applyParametersToVoices();
       break;
     case ParameterTarget::LfoPitchAmount:
-      parameters_.voice.lfoPitchAmountSemitones = std::clamp(message.value, -24.0f, 24.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Lfo1, ModulationDestination::PitchSemitones, std::clamp(message.value, -24.0f, 24.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::LfoFilterAmount:
-      parameters_.voice.lfoFilterAmountHz = std::clamp(message.value, -12000.0f, 12000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Lfo1, ModulationDestination::Filter1Cutoff, std::clamp(message.value, -12000.0f, 12000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::Macro1Value:
@@ -219,11 +229,11 @@ void ZephyrEngine::applyParameterMessage(const ParameterMessage& message) noexce
       applyParametersToVoices();
       break;
     case ParameterTarget::Macro1ToCutoff:
-      parameters_.voice.macro1ToCutoffHz = std::clamp(message.value, -12000.0f, 12000.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Macro1, ModulationDestination::Filter1Cutoff, std::clamp(message.value, -12000.0f, 12000.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::Macro1ToDrive:
-      parameters_.voice.macro1ToDrive = std::clamp(message.value, -4.0f, 4.0f);
+      setRouteAmount(parameters_.voice, ModulationSource::Macro1, ModulationDestination::Drive, std::clamp(message.value, -4.0f, 4.0f));
       applyParametersToVoices();
       break;
     case ParameterTarget::DriveAmount:

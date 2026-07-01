@@ -3,34 +3,38 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:padding="16dp">
 
     <TextView
         android:id="@+id/titleText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Zephyr Native"
-        android:textSize="24sp"
+        android:letterSpacing="0.35"
+        android:text="@string/title"
+        android:textColor="@color/zephyr_amber"
+        android:textSize="22sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Engine stopped" />
+        android:layout_marginTop="6dp"
+        android:text="@string/status_stopped"
+        android:textColor="@color/zephyr_text" />
 
     <TextView
         android:id="@+id/midiStatusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="No MIDI input connected" />
+        android:layout_marginTop="2dp"
+        android:text="@string/midi_none"
+        android:textColor="@color/zephyr_copper" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:orientation="horizontal">
 
         <Button
@@ -38,29 +42,31 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Start" />
+            android:text="@string/start" />
 
         <Button
             android:id="@+id/stopButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:text="Stop" />
-    </LinearLayout>
+            android:text="@string/stop" />
 
-    <Button
-        android:id="@+id/refreshMidiButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Refresh MIDI" />
+        <Button
+            android:id="@+id/refreshMidiButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="@string/refresh_midi" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="Macro 1" />
+        android:layout_marginTop="14dp"
+        android:text="@string/macro_1"
+        android:textColor="@color/zephyr_text" />
 
     <SeekBar
         android:id="@+id/macroSeek"
@@ -71,8 +77,9 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="Cutoff Base" />
+        android:layout_marginTop="10dp"
+        android:text="@string/cutoff_base"
+        android:textColor="@color/zephyr_text" />
 
     <SeekBar
         android:id="@+id/cutoffSeek"
@@ -80,34 +87,12 @@
         android:layout_height="wrap_content"
         android:max="100" />
 
-    <LinearLayout
+    <io.zephyr.synth.ZephyrKeyboardView
+        android:id="@+id/keyboardView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/noteCButton"
-            android:layout_width="0dp"
-            android:layout_height="72dp"
-            android:layout_weight="1"
-            android:text="C4" />
-
-        <Button
-            android:id="@+id/noteEButton"
-            android:layout_width="0dp"
-            android:layout_height="72dp"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:text="E4" />
-
-        <Button
-            android:id="@+id/noteGButton"
-            android:layout_width="0dp"
-            android:layout_height="72dp"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:text="G4" />
-    </LinearLayout>
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        android:layout_weight="1"
+        android:minHeight="200dp" />
 
 </LinearLayout>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ZephyrSynth" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/zephyr_amber</item>
+        <item name="colorOnPrimary">@color/zephyr_on_amber</item>
+        <item name="colorSecondary">@color/zephyr_copper</item>
+        <item name="colorSurface">@color/zephyr_surface</item>
+        <item name="android:colorBackground">@color/zephyr_bg</item>
+        <item name="android:statusBarColor">@color/zephyr_bg</item>
+        <item name="android:navigationBarColor">@color/zephyr_bg</item>
+    </style>
+</resources>

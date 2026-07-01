@@ -17,6 +17,10 @@ public:
   Impl() = default;
 
   bool start() {
+    if (stream_) {
+      return true;
+    }
+
     oboe::AudioStreamBuilder builder;
     builder.setDirection(oboe::Direction::Output);
     builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
@@ -26,13 +30,22 @@ public:
     builder.setSampleRate(48000);
     builder.setDataCallback(this);
 
-    auto result = builder.openManagedStream(stream_);
+    auto result = builder.openStream(stream_);
     if (result != oboe::Result::OK || !stream_) {
+      stream_.reset();
       return false;
     }
 
-    engine_.prepare(static_cast<double>(stream_->getSampleRate()), static_cast<std::uint32_t>(stream_->getFramesPerBurst() * 4));
-    return stream_->requestStart() == oboe::Result::OK;
+    const auto maxBlock = static_cast<std::uint32_t>(stream_->getFramesPerBurst() * 4);
+    scratchLeft_.assign(maxBlock, 0.0f);
+    scratchRight_.assign(maxBlock, 0.0f);
+    engine_.prepare(static_cast<double>(stream_->getSampleRate()), maxBlock);
+    if (stream_->requestStart() != oboe::Result::OK) {
+      stream_->close();
+      stream_.reset();
+      return false;
+    }
+    return true;
   }
 
   void stop() {

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="zephyr_bg">#0B0907</color>
+    <color name="zephyr_surface">#14100C</color>
+    <color name="zephyr_amber">#E8A33D</color>
+    <color name="zephyr_copper">#8A5A2B</color>
+    <color name="zephyr_text">#E8DDCB</color>
+    <color name="zephyr_on_amber">#1A1004</color>
+</resources>
