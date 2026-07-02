@@ -11,6 +11,9 @@ on:
       - "native/CMakeLists.txt"
       - ".github/workflows/android-debug-apk.yml"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,7 +39,48 @@ jobs:
           gradle-version: 8.10.2
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-log.txt
+
+      - name: Publish failure log to ci-logs branch
+        if: failure()
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tail -c 60000 /tmp/build-log.txt > /tmp/build-tail.txt || echo "no log captured" > /tmp/build-tail.txt
+          # also capture any CMake error logs AGP left behind
+          find native/android-app/app/.cxx -name '*.log' -o -name 'CMakeError.log' 2>/dev/null | head -5 | while read f; do
+            echo "===== $f =====" >> /tmp/build-tail.txt
+            tail -c 8000 "$f" >> /tmp/build-tail.txt
+          done
+          B64=$(base64 -w0 /tmp/build-tail.txt)
+          # get existing file sha on ci-logs branch if present
+          SHA=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/contents/last-failure.txt?ref=ci-logs" \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('sha',''))" 2>/dev/null || echo "")
+          python3 - << PYEOF
+          import json
+          payload = {
+              "message": "CI failure log for run ${{ github.run_number }}",
+              "content": "$B64",
+              "branch": "ci-logs",
+          }
+          sha = "$SHA"
+          if sha:
+              payload["sha"] = sha
+          open("/tmp/payload.json", "w").write(json.dumps(payload))
+          PYEOF
+          # create branch if it doesn't exist (from current HEAD)
+          curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/heads/ci-logs" | grep -q '"ref"' || \
+          curl -s -X POST -H "Authorization: token $GH_TOKEN" \
+            -d "{\"ref\":\"refs/heads/ci-logs\",\"sha\":\"${{ github.sha }}\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs"
+          curl -s -X PUT -H "Authorization: token $GH_TOKEN" \
+            -d @/tmp/payload.json \
+            "https://api.github.com/repos/${{ github.repository }}/contents/last-failure.txt"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
